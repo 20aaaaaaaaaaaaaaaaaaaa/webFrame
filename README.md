@@ -16,7 +16,7 @@
 - **Native Localization:** Currently fully translated to Turkish for local creators, with more languages rolling out very soon!
 - **Minimalist Focus:** We sent the giant yellow developer debug bug-button on a permanent vacation. We stripped away the clunky debugging panels and simplified the UI for a clean, distraction-free editing environment.
 
-> 🌟 **There's a lot more on the horizon!** Get ready for even more innovations with this "enlightened" (*nurani*) version of FreeCut.
+> 🌟 **There's a lot more on the horizon!** Get ready for even more innovations with this version of FreeCut.
 ## Quick Start
 
 ```bash
