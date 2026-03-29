@@ -244,7 +244,7 @@ export function ProjectsPage() {
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="panel-header border-b border-border">
-          <div className="max-w-[1920px] mx-auto px-6 py-5 flex items-center justify-between">
+          <div className="max-w-[1920px] mx-auto px-4 py-3 flex items-center justify-between">
             <Link to="/">
               <FreeCutLogo variant="full" size="md" className="hover:opacity-80 transition-opacity" />
             </Link>
@@ -252,7 +252,7 @@ export function ProjectsPage() {
               <Button
                 variant="outline"
                 size="icon"
-                className="h-10 w-10"
+                className="h-8 w-8"
                 asChild
               >
                 <a
@@ -265,12 +265,12 @@ export function ProjectsPage() {
                   <Github className="w-5 h-5" />
                 </a>
               </Button>
-              <Button variant="outline" size="lg" className="gap-2" onClick={handleImportClick}>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleImportClick}>
                 <Upload className="w-4 h-4" />
                 {t('projects.importProject')}
               </Button>
               <Link to="/projects/new">
-                <Button size="lg" className="gap-2">
+                <Button size="sm" className="gap-1.5">
                   <Plus className="w-4 h-4" />
                   {t('projects.newProject')}
                 </Button>
@@ -308,7 +308,7 @@ export function ProjectsPage() {
           </div>
         ) : (
           /* Projects List */
-          <div className="max-w-[1920px] mx-auto px-6 py-8">
+          <div className="max-w-[1920px] mx-auto px-4 py-4">
             <ProjectList onEditProject={handleEditProject} />
           </div>
         )}

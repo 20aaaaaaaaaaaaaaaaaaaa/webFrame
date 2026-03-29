@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Link } from '@tanstack/react-router';
 import {
   projectFormSchema,
@@ -97,65 +96,56 @@ export function ProjectForm({
       )}
 
       {/* Form */}
-      <div className="max-w-3xl mx-auto px-6 py-8">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-          {/* Project Details */}
-          <div className="panel-bg border border-border rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-8 w-1 bg-primary rounded-full" />
-              <h2 className="text-lg font-medium text-foreground">{t('projects.projectDetails', 'Project Details')}</h2>
+      <div className="max-w-4xl mx-auto px-6 py-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Project Details — compact inline */}
+          <div className="panel-bg border border-border rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-5 w-1 bg-primary rounded-full" />
+              <h2 className="text-xs font-medium text-foreground">{t('projects.projectDetails', 'Project Details')}</h2>
             </div>
-
-            <div className="space-y-5">
-              {/* Project Name */}
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label htmlFor="name" className="block text-xs font-medium text-muted-foreground mb-1">
                   {t('projects.projectName', 'Project Name')} <span className="text-destructive">*</span>
                 </label>
                 <input
                   id="name"
                   type="text"
                   {...register('name')}
-                  className="w-full px-3 py-2 bg-secondary border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
+                  className="w-full px-2.5 py-1.5 text-sm bg-secondary border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
                   placeholder={t('projects.projectNamePlaceholder', 'Enter project name...')}
                 />
                 {errors.name && (
-                  <p className="mt-1.5 text-sm text-destructive">{errors.name.message}</p>
+                  <p className="mt-1 text-xs text-destructive">{errors.name.message}</p>
                 )}
               </div>
-
-              {/* Description */}
-              <div>
-                <label
-                  htmlFor="description"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
+              <div className="flex-1">
+                <label htmlFor="description" className="block text-xs font-medium text-muted-foreground mb-1">
                   {t('projects.description', 'Description')}
                 </label>
-                <textarea
+                <input
                   id="description"
-                  rows={3}
+                  type="text"
                   {...register('description')}
-                  className="w-full px-3 py-2 bg-secondary border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all resize-none"
+                  className="w-full px-2.5 py-1.5 text-sm bg-secondary border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
                   placeholder={t('projects.descriptionPlaceholder', 'Brief description of your project...')}
                 />
                 {errors.description && (
-                  <p className="mt-1.5 text-sm text-destructive">{errors.description.message}</p>
+                  <p className="mt-1 text-xs text-destructive">{errors.description.message}</p>
                 )}
               </div>
             </div>
           </div>
 
-          <Separator />
-
            {/* Video Settings */}
-           <div className="panel-bg border border-border rounded-lg p-6">
-             <div className="flex items-center gap-3 mb-6">
-               <div className="h-8 w-1 bg-primary rounded-full" />
-               <h2 className="text-lg font-medium text-foreground">{t('projects.videoSettings', 'Video Settings')}</h2>
+           <div className="panel-bg border border-border rounded-lg p-3">
+             <div className="flex items-center gap-2 mb-2">
+               <div className="h-5 w-1 bg-primary rounded-full" />
+               <h2 className="text-xs font-medium text-foreground">{t('projects.videoSettings', 'Video Settings')}</h2>
              </div>
 
-             <div className="space-y-6">
+             <div className="space-y-3">
                {/* Resolution — visual template picker */}
                <div>
                  <p className="text-sm font-medium text-foreground mb-3">{t('projects.resolution', 'Resolution')}</p>

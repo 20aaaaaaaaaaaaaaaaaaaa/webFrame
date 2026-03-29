@@ -118,7 +118,7 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-secondary/40 to-secondary/20">
-            <PlayCircle className="w-12 h-12 text-muted-foreground/40" />
+            <PlayCircle className="w-8 h-8 text-muted-foreground/40" />
           </div>
         )}
 
@@ -137,10 +137,10 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
       </Link>
 
       {/* Content */}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-1.5 mb-1">
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+            <h3 className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">
               {project.name}
             </h3>
             {project.description && (
@@ -245,7 +245,7 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
         </AlertDialog>
 
         {/* Metadata */}
-        <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <span className="font-mono">{aspectRatioLabel}</span>
           </div>
