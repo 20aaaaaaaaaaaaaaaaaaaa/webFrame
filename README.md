@@ -19,6 +19,10 @@
 > 🌟 **There's a lot more on the horizon!** Get ready for even more innovations with this version of FreeCut.
 ## Quick Start
 
+### 🚀 Portable Version (No Installation Required)
+We provide a standalone **"Click and Run"** executable version. You can simply double-click the `webFrame-Portatif.exe` file (once downloaded or provided), and the editor will seamlessly launch in your default browser without any setup.
+
+### 💻 Developer Setup (Running from source)
 ```bash
 npm install
 npm run dev
