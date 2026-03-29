@@ -1,6 +1,6 @@
 # webFrame
 
-**Browser-based multi-track video editor.**
+**Browser-based multi-track video editor.** *16:9 tek monitörde çalışanlar için en esnek pencere yerleşimleriyle rahat çalışmanız için özel tasarlandı. (Optimized for maximum comfort and flexibility on standard 16:9 single-monitor setups.)*
 
 
 <img width="2876" height="1310" alt="image" src="https://github.com/user-attachments/assets/1065e837-ea08-4bd2-bf2d-3a07ddad9d1e" />
