@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { interpolate, useSequenceContext } from '@/features/composition-runtime/deps/player';
 import { useVideoConfig, useIsPlaying } from '../hooks/use-player-compat';
 import { getAudioTargetTimeSeconds } from '../utils/video-timing';
@@ -24,20 +24,7 @@ const DRIFT_RESYNC_NEGATIVE_THRESHOLD_SECONDS = -0.75;
 const BACKGROUND_RESYNC_GRACE_MS = 250;
 const WAIT_FOR_FULL_DECODE_BEFORE_PLAYBACK = true;
 
-let sharedCtx: AudioContext | null = null;
-
-function getSharedAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-
-  const Ctor = window.AudioContext ??
-    (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Ctor) return null;
-
-  if (sharedCtx === null || sharedCtx.state === 'closed') {
-    sharedCtx = new Ctor();
-  }
-  return sharedCtx;
-}
+import { getMasterAudioContext, connectToMasterBus } from '../utils/master-audio-bus';
 
 interface CustomDecoderBufferedAudioProps {
   src: string;
@@ -250,12 +237,12 @@ export const CustomDecoderBufferedAudio: React.FC<CustomDecoderBufferedAudioProp
   }, [mediaId, src]);
 
   useEffect(() => {
-    const ctx = getSharedAudioContext();
+    const ctx = getMasterAudioContext();
     if (!ctx) return;
 
     const gain = ctx.createGain();
     gain.gain.value = 0;
-    gain.connect(ctx.destination);
+    connectToMasterBus(gain);
     gainNodeRef.current = gain;
 
     return () => {
@@ -271,7 +258,7 @@ export const CustomDecoderBufferedAudio: React.FC<CustomDecoderBufferedAudioProp
 
   useEffect(() => {
     const resume = () => {
-      const ctx = getSharedAudioContext();
+      const ctx = getMasterAudioContext();
       if (ctx && ctx.state === 'suspended') {
         void ctx.resume().catch(() => undefined);
       }
@@ -294,7 +281,7 @@ export const CustomDecoderBufferedAudio: React.FC<CustomDecoderBufferedAudioProp
     const markForegrounded = () => {
       if (!wasBackgroundedRef.current) return;
       backgroundResyncGraceUntilRef.current = performance.now() + BACKGROUND_RESYNC_GRACE_MS;
-      const ctx = getSharedAudioContext();
+      const ctx = getMasterAudioContext();
       if (ctx?.state === 'suspended') {
         void ctx.resume().catch(() => undefined);
       }
@@ -337,7 +324,7 @@ export const CustomDecoderBufferedAudio: React.FC<CustomDecoderBufferedAudioProp
   }, []);
 
   useEffect(() => {
-    const ctx = getSharedAudioContext();
+    const ctx = getMasterAudioContext();
     const gain = gainNodeRef.current;
     if (!ctx || !gain) return;
 
@@ -355,7 +342,7 @@ export const CustomDecoderBufferedAudio: React.FC<CustomDecoderBufferedAudioProp
     if (!source) return;
     sourceRef.current = null;
 
-    const ctx = getSharedAudioContext();
+    const ctx = getMasterAudioContext();
     const gain = gainNodeRef.current;
 
     if (fadeOut && ctx && gain) {
@@ -378,7 +365,7 @@ export const CustomDecoderBufferedAudio: React.FC<CustomDecoderBufferedAudioProp
   useEffect(() => {
     if (!audioBuffer) return;
 
-    const ctx = getSharedAudioContext();
+    const ctx = getMasterAudioContext();
     const gain = gainNodeRef.current;
     if (!ctx || !gain) return;
 

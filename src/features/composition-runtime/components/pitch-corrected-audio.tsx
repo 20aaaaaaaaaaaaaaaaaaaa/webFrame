@@ -8,23 +8,7 @@ import { useTimelineStore } from '@/features/composition-runtime/deps/stores';
 import { useItemKeyframesFromContext } from '../contexts/keyframes-context';
 import { getPropertyKeyframes, interpolatePropertyValue } from '@/features/composition-runtime/deps/keyframes';
 
-let sharedAudioContext: AudioContext | null = null;
-
-function getSharedAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-
-  const webkitWindow = window as Window & {
-    webkitAudioContext?: typeof AudioContext;
-  };
-  const AudioContextCtor = window.AudioContext ?? webkitWindow.webkitAudioContext;
-  if (!AudioContextCtor) return null;
-
-  if (sharedAudioContext === null || sharedAudioContext.state === 'closed') {
-    sharedAudioContext = new AudioContextCtor();
-  }
-
-  return sharedAudioContext;
-}
+import { getMasterAudioContext, connectToMasterBus } from '../utils/master-audio-bus';
 
 interface PitchCorrectedAudioProps {
   src: string;
@@ -244,7 +228,7 @@ export const PitchCorrectedAudio: React.FC<PitchCorrectedAudioProps> = React.mem
     }
   }, [playbackRate]);
 
-  // Update volume. Use native audio.volume for <= 1, lazily promote to Web Audio gain for boosts.
+  // Update volume. Always route through Web Audio to ensure the global VU meter reads it.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -257,16 +241,10 @@ export const PitchCorrectedAudio: React.FC<PitchCorrectedAudioProps> = React.mem
       return;
     }
 
-    // Fast path: native volume is cheaper and avoids allocating Web Audio nodes.
-    if (clampedVolume <= 1) {
-      audio.volume = clampedVolume;
-      return;
-    }
-
-    // Promote to Web Audio graph only when boost above 1 is actually required.
-    const audioContext = getSharedAudioContext();
+    // Always promote to Web Audio graph to feed the VU meter.
+    const audioContext = getMasterAudioContext();
     if (!audioContext) {
-      audio.volume = 1;
+      audio.volume = Math.min(1, clampedVolume);
       return;
     }
 
@@ -274,7 +252,7 @@ export const PitchCorrectedAudio: React.FC<PitchCorrectedAudioProps> = React.mem
       const gainNode = audioContext.createGain();
       const sourceNode = audioContext.createMediaElementSource(audio);
       sourceNode.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      connectToMasterBus(gainNode);
 
       gainNodeRef.current = gainNode;
       sourceNodeRef.current = sourceNode;
@@ -282,7 +260,7 @@ export const PitchCorrectedAudio: React.FC<PitchCorrectedAudioProps> = React.mem
       gainNode.gain.value = clampedVolume;
     } catch {
       // Fallback if graph connection fails (e.g., browser restrictions).
-      audio.volume = 1;
+      audio.volume = Math.min(1, clampedVolume);
     }
   }, [finalVolume, muted]);
 
@@ -379,7 +357,7 @@ export const PitchCorrectedAudio: React.FC<PitchCorrectedAudioProps> = React.mem
           const onSeeked = () => {
             audio.removeEventListener('seeked', onSeeked);
             if (usePlaybackStore.getState().isPlaying && audio.paused) {
-              const ctx = gainNodeRef.current ? getSharedAudioContext() : null;
+              const ctx = gainNodeRef.current ? getMasterAudioContext() : null;
               if (ctx?.state === 'suspended') ctx.resume();
               audio.play().catch(() => {});
             }
@@ -388,7 +366,7 @@ export const PitchCorrectedAudio: React.FC<PitchCorrectedAudioProps> = React.mem
           return; // Don't play yet
         }
         // Resume shared context when this clip is using Web Audio gain.
-        const sharedContext = gainNodeRef.current ? getSharedAudioContext() : null;
+        const sharedContext = gainNodeRef.current ? getMasterAudioContext() : null;
         if (sharedContext?.state === 'suspended') {
           sharedContext.resume();
         }

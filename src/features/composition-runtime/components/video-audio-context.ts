@@ -8,29 +8,14 @@ import { useItemKeyframesFromContext } from '../contexts/keyframes-context';
 import { getPropertyKeyframes, interpolatePropertyValue } from '@/features/composition-runtime/deps/keyframes';
 import type { VideoItem } from '@/types/timeline';
 
+import { getMasterAudioContext, connectToMasterBus } from '../utils/master-audio-bus';
+
 // Track video elements that have been connected to Web Audio API
 // A video element can only be connected to ONE MediaElementSourceNode ever
 const connectedVideoElements = new WeakSet<HTMLVideoElement>();
 // Store gain nodes by video element for volume updates
 const videoGainNodes = new WeakMap<HTMLVideoElement, GainNode>();
 const videoAudioContexts = new WeakMap<HTMLVideoElement, AudioContext>();
-let sharedVideoAudioContext: AudioContext | null = null;
-
-function getSharedVideoAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-
-  const webkitWindow = window as Window & {
-    webkitAudioContext?: typeof AudioContext;
-  };
-  const AudioContextCtor = window.AudioContext ?? webkitWindow.webkitAudioContext;
-  if (!AudioContextCtor) return null;
-
-  if (sharedVideoAudioContext === null || sharedVideoAudioContext.state === 'closed') {
-    sharedVideoAudioContext = new AudioContextCtor();
-  }
-
-  return sharedVideoAudioContext;
-}
 
 export function applyVideoElementAudioVolume(video: HTMLVideoElement, audioVolume: number): void {
   // Pool creates elements muted. Keep element unmuted and control via volume/gain.
@@ -49,15 +34,11 @@ export function applyVideoElementAudioVolume(video: HTMLVideoElement, audioVolum
     return;
   }
 
-  // For <= 1, native volume is cheaper.
-  if (audioVolume <= 1) {
-    video.volume = Math.max(0, audioVolume);
-    return;
-  }
-
-  // For boost > 1, use shared Web Audio context.
+  // To support the global VU meter, ALL audio must run through the Master Web Audio Context.
+  // The old native volume fast-path (audioVolume <= 1) has been removed here.
+  
   try {
-    const audioContext = getSharedVideoAudioContext();
+    const audioContext = getMasterAudioContext();
     if (!audioContext) {
       video.volume = Math.min(1, Math.max(0, audioVolume));
       return;
@@ -67,7 +48,7 @@ export function applyVideoElementAudioVolume(video: HTMLVideoElement, audioVolum
     gainNode.gain.value = audioVolume;
     const sourceNode = audioContext.createMediaElementSource(video);
     sourceNode.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    connectToMasterBus(gainNode); // Route to global analyser instead of destination
 
     connectedVideoElements.add(video);
     videoGainNodes.set(video, gainNode);
@@ -76,21 +57,23 @@ export function applyVideoElementAudioVolume(video: HTMLVideoElement, audioVolum
     if (audioContext.state === 'suspended') {
       audioContext.resume();
     }
+    
+    // Set native volume to 1 so the Gain node completely controls output
+    video.volume = 1;
   } catch {
-    // Fallback if Web Audio setup fails.
+    // Fallback if Web Audio setup fails (e.g. some strict browser policies).
     video.volume = Math.min(1, Math.max(0, audioVolume));
   }
 }
 
 /**
  * Pre-resume the shared AudioContext. Call on playback start so audio
- * is ready immediately when video elements begin playing. Without this,
- * the AudioContext may be suspended (browser autoplay policy) and audio
- * lags behind video by 50-100ms on cold resume.
+ * is ready immediately.
  */
 export function ensureAudioContextResumed(): void {
-  if (sharedVideoAudioContext?.state === 'suspended') {
-    sharedVideoAudioContext.resume();
+  const ctx = getMasterAudioContext();
+  if (ctx?.state === 'suspended') {
+    ctx.resume();
   }
 }
 

@@ -17,6 +17,7 @@ import { EDITOR_LAYOUT_CSS_VALUES, getEditorLayout } from '@/shared/ui/editor-la
 import { InteractionLockRegion } from './interaction-lock-region';
 import { Button } from '@/components/ui/button';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { AudioMeter } from './audio-meter';
 import { useTranslation } from 'react-i18next';
 
 interface PreviewAreaProps {
@@ -467,150 +468,154 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
       )}
 
         <div
-          className={`flex flex-col min-w-0 min-h-0 ${hasSidePanels ? '' : 'flex-1'}`}
+          className={`flex flex-row min-w-0 min-h-0 ${hasSidePanels ? '' : 'flex-1'}`}
           style={hasSidePanels ? { width: `${programPanelPercent}%` } : undefined}
           role="region"
-          aria-label="Program monitor"
+          aria-label="Program monitor wrapper"
         >
-        {hasSidePanels && (
-          <div
-            className="border-b border-border flex items-center px-3 flex-shrink-0"
-            style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewSplitHeaderHeight }}
-          >
-            <span className="text-xs text-muted-foreground">{t('preview.program', 'Program')}</span>
-          </div>
-        )}
-
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
-          <div ref={previewContainerRef} className="flex-1 min-h-0 relative overflow-hidden" aria-label="Preview canvas region">
-            <ErrorBoundary level="component">
-              <VideoPreview
-                project={liveProject}
-                containerSize={containerSize}
-                suspendOverlay={isPanelDragging}
-              />
-            </ErrorBoundary>
-          </div>
-
-          {isPenModeActive ? (
-            <div
-              className="border-t border-border panel-header flex items-center px-3 flex-shrink-0 gap-3 overflow-hidden"
-              style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
-              role="toolbar"
-              aria-label="Mask pen controls"
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-500">
-                    {t('media.pen', 'Pen Tool')}
-                  </span>
-                  <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-600">
-                    {penVertexCount} {t('preview.points', 'points')}
-                  </span>
-                </div>
-                <span className="min-w-0 truncate text-xs text-muted-foreground">
-                  {penModeHint}
-                </span>
-              </div>
-              <div className="flex flex-shrink-0 items-center gap-2">
-                <span className="hidden text-[11px] text-muted-foreground lg:inline">
-                  {t('preview.backspaceHint', 'Backspace removes the last point.')}
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8 px-3 text-[11px]"
-                  disabled={!canFinishPenPath}
-                  onClick={requestFinishPenMode}
-                >
-                  {t('preview.finishShape', 'Finish Shape')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-3 text-[11px]"
-                  onClick={requestCancelPenMode}
-                >
-                  {t('timeline.cancel', 'Cancel')}
-                </Button>
-              </div>
-            </div>
-          ) : isPathEditModeActive ? (
-            <div
-              className="border-t border-border panel-header flex items-center px-3 flex-shrink-0 gap-3 overflow-hidden"
-              style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
-              role="toolbar"
-              aria-label="Mask path edit controls"
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-500">
-                    {t('preview.pathEdit', 'Path Edit')}
-                  </span>
-                  <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-600">
-                    {displayedEditVertexCount} {t('preview.points', 'points')}
-                  </span>
-                </div>
-                <span className="min-w-0 truncate text-xs text-muted-foreground">
-                  {editModeHint}
-                </span>
-              </div>
-              <div className="flex flex-shrink-0 items-center gap-2">
-                <span className="hidden text-[11px] text-muted-foreground xl:inline">
-                  {t('preview.pathEditHint', 'Double-click an edge to add a point. Drag empty space to box-select points.')}
-                </span>
-                <span className="hidden text-[11px] text-muted-foreground 2xl:inline">
-                  {selectedVertexHint}
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={hasSelectedVertex ? 'secondary' : 'outline'}
-                  className="h-8 px-3 text-[11px]"
-                  disabled={!hasSelectedVertex}
-                  onClick={() => requestConvertSelectedVertex('corner')}
-                >
-                  {t('preview.corner', 'Corner')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={hasSelectedVertex ? 'secondary' : 'outline'}
-                  className="h-8 px-3 text-[11px]"
-                  disabled={!hasSelectedVertex}
-                  onClick={() => requestConvertSelectedVertex('bezier')}
-                >
-                  {t('preview.bezier', 'Bezier')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8 px-3 text-[11px]"
-                  onClick={stopMaskEditing}
-                >
-                  {t('preview.done', 'Done')}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <InteractionLockRegion locked={false} overlayClassName="rounded-none">
+          <AudioMeter />
+          
+          <div className="flex-1 flex flex-col min-w-0 min-h-0" role="region" aria-label="Program monitor">
+            {hasSidePanels && (
               <div
-                className="border-t border-border panel-header flex flex-wrap items-center justify-center px-2 py-1 flex-shrink-0 gap-x-3 gap-y-0.5"
-                style={{ minHeight: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
+                className="border-b border-border flex items-center px-3 flex-shrink-0"
+                style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewSplitHeaderHeight }}
               >
-                <div className="flex-shrink-0">
-                  <TimecodeDisplay fps={fps} totalFrames={totalFrames} />
-                </div>
-                <PlaybackControls totalFrames={totalFrames} fps={fps} />
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <PreviewZoomControls />
-                </div>
+                <span className="text-xs text-muted-foreground">{t('preview.program', 'Program')}</span>
               </div>
-            </InteractionLockRegion>
-          )}
+            )}
+
+            <div className="flex-1 flex flex-col min-w-0 min-h-0">
+              <div ref={previewContainerRef} className="flex-1 min-h-0 relative overflow-hidden" aria-label="Preview canvas region">
+                <ErrorBoundary level="component">
+                  <VideoPreview
+                    project={liveProject}
+                    containerSize={containerSize}
+                    suspendOverlay={isPanelDragging}
+                  />
+                </ErrorBoundary>
+              </div>
+
+              {isPenModeActive ? (
+                <div
+                  className="border-t border-border panel-header flex items-center px-3 flex-shrink-0 gap-3 overflow-hidden"
+                  style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
+                  role="toolbar"
+                  aria-label="Mask pen controls"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-500">
+                        {t('media.pen', 'Pen Tool')}
+                      </span>
+                      <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-600">
+                        {penVertexCount} {t('preview.points', 'points')}
+                      </span>
+                    </div>
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">
+                      {penModeHint}
+                    </span>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <span className="hidden text-[11px] text-muted-foreground lg:inline">
+                      {t('preview.backspaceHint', 'Backspace removes the last point.')}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 px-3 text-[11px]"
+                      disabled={!canFinishPenPath}
+                      onClick={requestFinishPenMode}
+                    >
+                      {t('preview.finishShape', 'Finish Shape')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-3 text-[11px]"
+                      onClick={requestCancelPenMode}
+                    >
+                      {t('timeline.cancel', 'Cancel')}
+                    </Button>
+                  </div>
+                </div>
+              ) : isPathEditModeActive ? (
+                <div
+                  className="border-t border-border panel-header flex items-center px-3 flex-shrink-0 gap-3 overflow-hidden"
+                  style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
+                  role="toolbar"
+                  aria-label="Mask path edit controls"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-500">
+                        {t('preview.pathEdit', 'Path Edit')}
+                      </span>
+                      <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-600">
+                        {displayedEditVertexCount} {t('preview.points', 'points')}
+                      </span>
+                    </div>
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">
+                      {editModeHint}
+                    </span>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <span className="hidden text-[11px] text-muted-foreground xl:inline">
+                      {t('preview.pathEditHint', 'Double-click an edge to add a point. Drag empty space to box-select points.')}
+                    </span>
+                    <span className="hidden text-[11px] text-muted-foreground 2xl:inline">
+                      {selectedVertexHint}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={hasSelectedVertex ? 'secondary' : 'outline'}
+                      className="h-8 px-3 text-[11px]"
+                      disabled={!hasSelectedVertex}
+                      onClick={() => requestConvertSelectedVertex('corner')}
+                    >
+                      {t('preview.corner', 'Corner')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={hasSelectedVertex ? 'secondary' : 'outline'}
+                      className="h-8 px-3 text-[11px]"
+                      disabled={!hasSelectedVertex}
+                      onClick={() => requestConvertSelectedVertex('bezier')}
+                    >
+                      {t('preview.bezier', 'Bezier')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 px-3 text-[11px]"
+                      onClick={stopMaskEditing}
+                    >
+                      {t('preview.done', 'Done')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <InteractionLockRegion locked={false} overlayClassName="rounded-none">
+                  <div
+                    className="border-t border-border panel-header flex flex-wrap items-center justify-center px-2 py-1 flex-shrink-0 gap-x-3 gap-y-0.5"
+                    style={{ minHeight: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
+                  >
+                    <div className="flex-shrink-0">
+                      <TimecodeDisplay fps={fps} totalFrames={totalFrames} />
+                    </div>
+                    <PlaybackControls totalFrames={totalFrames} fps={fps} />
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <PreviewZoomControls />
+                    </div>
+                  </div>
+                </InteractionLockRegion>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
 
       {colorScopesOpen && (
         <>
