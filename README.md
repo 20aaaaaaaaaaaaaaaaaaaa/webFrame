@@ -2,6 +2,8 @@
 
 **Browser-based multi-track video editor.**
 
+![webFrame Arayüzü](./screenshot.png)
+
 *First of all, a huge thanks and "Merhaba!" (Hello!) to Walter! 👋 This project is an evolved branch of his amazing [FreeCut](https://github.com/walterlow/freecut) (MIT License). We built upon his powerful timeline and video rendering engine to create a more localized, flexible workspace.*
 
 ✨ **webFrame Exclusive Features**
