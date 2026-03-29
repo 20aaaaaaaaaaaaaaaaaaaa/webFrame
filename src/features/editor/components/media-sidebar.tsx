@@ -1,0 +1,769 @@
+import { useCallback, useMemo, useRef, useEffect, useState, memo, Activity } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Film,
+  Layers,
+  Type,
+  Square,
+  Circle,
+  Triangle,
+  Star,
+  Hexagon,
+  Heart,
+  Pentagon,
+  Sparkles,
+  Blend,
+  Pen,
+  Briefcase,
+  Settings,
+  Keyboard,
+  Github,
+} from 'lucide-react';
+import { Toolbar } from './toolbar';
+import { ShortcutsDialog } from './shortcuts-dialog';
+import { SettingsDialog } from './settings-dialog';
+import { useEditorStore } from '@/shared/state/editor';
+import { useTimelineStore } from '@/features/editor/deps/timeline-store';
+import { usePlaybackStore } from '@/shared/state/playback';
+import { useSelectionStore } from '@/shared/state/selection';
+import { useProjectStore } from '@/features/editor/deps/projects';
+import { MediaLibrary } from '@/features/editor/deps/media-library';
+import { TransitionsPanel } from './transitions-panel';
+import { findNearestAvailableSpace } from '@/features/editor/deps/timeline-utils';
+import type { TextItem, ShapeItem, ShapeType, AdjustmentItem } from '@/types/timeline';
+import { useMaskEditorStore } from '@/features/editor/deps/preview';
+import type { VisualEffect, GpuEffect } from '@/types/effects';
+import { EFFECT_PRESETS } from '@/types/effects';
+import { getGpuCategoriesWithEffects, getGpuEffectDefaultParams } from '@/infrastructure/gpu/effects';
+import { useEffectPreviews } from '@/features/editor/deps/effects-contract';
+import { createLogger } from '@/shared/logging/logger';
+import { useSettingsStore } from '@/features/editor/deps/settings';
+import {
+  EDITOR_LAYOUT_CSS_VALUES,
+  clampEditorSidebarWidth,
+  getEditorLayout,
+} from '@/shared/ui/editor-layout';
+import { useTranslation } from 'react-i18next';
+
+const logger = createLogger('MediaSidebar');
+
+interface MediaSidebarProps {
+  projectId?: string;
+  project?: {
+    id: string;
+    name: string;
+    width: number;
+    height: number;
+    fps: number;
+  };
+  isDirty?: boolean;
+  onSave?: () => Promise<void>;
+  onExport?: () => void;
+  onExportBundle?: () => void;
+}
+
+export const MediaSidebar = memo(function MediaSidebar({
+  projectId,
+  project,
+  isDirty,
+  onSave,
+  onExport,
+  onExportBundle,
+}: MediaSidebarProps = {}) {
+  const { t } = useTranslation();
+  const editorDensity = useSettingsStore((s) => s.editorDensity);
+  const editorLayout = getEditorLayout(editorDensity);
+  // Use granular selectors - Zustand v5 best practice
+  const leftSidebarOpen = useEditorStore((s) => s.leftSidebarOpen);
+  const toggleLeftSidebar = useEditorStore((s) => s.toggleLeftSidebar);
+  const activeTab = useEditorStore((s) => s.activeTab);
+  const setActiveTab = useEditorStore((s) => s.setActiveTab);
+  const sidebarWidth = useEditorStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useEditorStore((s) => s.setSidebarWidth);
+
+  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+
+  // Resize handle logic
+  const isResizingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = sidebarWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const delta = e.clientX - startXRef.current;
+      const newWidth = clampEditorSidebarWidth(startWidthRef.current + delta, editorLayout);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (!isResizingRef.current) return;
+      isResizingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      isResizingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [editorLayout, setSidebarWidth]);
+
+  // NOTE: Don't subscribe to tracks, items, currentProject here!
+  // These change frequently and would cause re-renders cascading to MediaLibrary/MediaCards
+  // Read from store directly in callbacks using getState()
+
+  // Add text item to timeline at the best available position
+  const handleAddText = useCallback(() => {
+    // Read all needed state from stores directly to avoid subscriptions
+    const { tracks, items, fps, addItem } = useTimelineStore.getState();
+    const { activeTrackId, selectItems } = useSelectionStore.getState();
+    const currentProject = useProjectStore.getState().currentProject;
+
+    // Use active track if available and not locked, otherwise find first available
+    let targetTrack = activeTrackId
+      ? tracks.find((t) => t.id === activeTrackId && t.visible !== false && !t.locked)
+      : null;
+
+    // Fallback to first available visible/unlocked track
+    if (!targetTrack) {
+      targetTrack = tracks.find((t) => t.visible !== false && !t.locked);
+    }
+
+    if (!targetTrack) {
+      logger.warn('No available track for text item');
+      return;
+    }
+
+    // Default duration: 60 seconds
+    const durationInFrames = fps * 60;
+
+    // Find the best position: start at playhead, find nearest available space
+    const proposedPosition = usePlaybackStore.getState().currentFrame;
+    const finalPosition = findNearestAvailableSpace(
+      proposedPosition,
+      durationInFrames,
+      targetTrack.id,
+      items
+    ) ?? proposedPosition; // Fallback to proposed if no space found
+
+    // Get canvas dimensions for initial transform
+    const canvasWidth = currentProject?.metadata.width ?? 1920;
+    const canvasHeight = currentProject?.metadata.height ?? 1080;
+
+    // Create a new text item
+    const textItem: TextItem = {
+      id: crypto.randomUUID(),
+      type: 'text',
+      trackId: targetTrack.id,
+      from: finalPosition,
+      durationInFrames,
+      label: t('properties.text', 'Text'),
+      text: t('media.yourTextHere', 'Your Text Here'),
+      fontSize: 60,
+      fontFamily: 'Inter',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      underline: false,
+      color: '#ffffff',
+      textAlign: 'center',
+      lineHeight: 1.2,
+      letterSpacing: 0,
+      // Center the text on canvas
+      transform: {
+        x: 0,
+        y: 0,
+        width: canvasWidth * 0.8,
+        height: canvasHeight * 0.3,
+        rotation: 0,
+        opacity: 1,
+      },
+    };
+
+    addItem(textItem);
+    // Select the new item
+    selectItems([textItem.id]);
+  }, []);
+
+  // Add shape item to timeline at the best available position
+  const handleAddShape = useCallback((shapeType: ShapeType) => {
+    // Read all needed state from stores directly to avoid subscriptions
+    const { tracks, items, fps, addItem } = useTimelineStore.getState();
+    const { activeTrackId, selectItems } = useSelectionStore.getState();
+    const currentProject = useProjectStore.getState().currentProject;
+
+    // Use active track if available and not locked, otherwise find first available
+    let targetTrack = activeTrackId
+      ? tracks.find((t) => t.id === activeTrackId && t.visible !== false && !t.locked)
+      : null;
+
+    // Fallback to first available visible/unlocked track
+    if (!targetTrack) {
+      targetTrack = tracks.find((t) => t.visible !== false && !t.locked);
+    }
+
+    if (!targetTrack) {
+      logger.warn('No available track for shape item');
+      return;
+    }
+
+    // Default duration: 60 seconds
+    const durationInFrames = fps * 60;
+
+    // Find the best position: start at playhead, find nearest available space
+    const proposedPosition = usePlaybackStore.getState().currentFrame;
+    const finalPosition = findNearestAvailableSpace(
+      proposedPosition,
+      durationInFrames,
+      targetTrack.id,
+      items
+    ) ?? proposedPosition;
+
+    // Get canvas dimensions for initial transform
+    const canvasWidth = currentProject?.metadata.width ?? 1920;
+    const canvasHeight = currentProject?.metadata.height ?? 1080;
+
+    // Shape size: 25% of canvas, centered
+    const shapeSize = Math.min(canvasWidth, canvasHeight) * 0.25;
+
+    // Create a new shape item with defaults based on shape type
+    const shapeItem: ShapeItem = {
+      id: crypto.randomUUID(),
+      type: 'shape',
+      trackId: targetTrack.id,
+      from: finalPosition,
+      durationInFrames,
+      label: t(`media.shape.${shapeType}`, shapeType.charAt(0).toUpperCase() + shapeType.slice(1)), // could optionally translate shapeType itself
+      shapeType,
+      fillColor: '#3b82f6', // Blue
+      strokeColor: undefined,
+      strokeWidth: 0,
+      cornerRadius: shapeType === 'rectangle' ? 0 : undefined,
+      direction: shapeType === 'triangle' ? 'up' : undefined,
+      points: shapeType === 'star' ? 5 : shapeType === 'polygon' ? 6 : undefined,
+      innerRadius: shapeType === 'star' ? 0.5 : undefined,
+      // Center the shape on canvas with locked aspect ratio
+      transform: {
+        x: 0,
+        y: 0,
+        width: shapeSize,
+        height: shapeSize,
+        rotation: 0,
+        opacity: 1,
+        aspectRatioLocked: true,
+      },
+    };
+
+    addItem(shapeItem);
+    // Select the new item
+    selectItems([shapeItem.id]);
+  }, []);
+
+  // Add adjustment layer to timeline at the best available position
+  // Optionally with pre-applied effects and custom label
+  const handleAddAdjustmentLayer = useCallback((effects?: VisualEffect[], label?: string) => {
+    // Read all needed state from stores directly to avoid subscriptions
+    const { tracks, items, fps, addItem } = useTimelineStore.getState();
+    const { activeTrackId, selectItems } = useSelectionStore.getState();
+
+    // Use active track if available and not locked, otherwise find first available
+    let targetTrack = activeTrackId
+      ? tracks.find((t) => t.id === activeTrackId && t.visible !== false && !t.locked)
+      : null;
+
+    // Fallback to first available visible/unlocked track
+    if (!targetTrack) {
+      targetTrack = tracks.find((t) => t.visible !== false && !t.locked);
+    }
+
+    if (!targetTrack) {
+      logger.warn('No available track for adjustment layer');
+      return;
+    }
+
+    // Default duration: 60 seconds
+    const durationInFrames = fps * 60;
+
+    // Find the best position: start at playhead, find nearest available space
+    const proposedPosition = usePlaybackStore.getState().currentFrame;
+    const finalPosition = findNearestAvailableSpace(
+      proposedPosition,
+      durationInFrames,
+      targetTrack.id,
+      items
+    ) ?? proposedPosition;
+
+    // Convert VisualEffect[] to ItemEffect[] with IDs
+    const itemEffects = effects?.map((effect) => ({
+      id: crypto.randomUUID(),
+      effect,
+      enabled: true,
+    })) ?? [];
+
+    // Create a new adjustment layer
+    const adjustmentItem: AdjustmentItem = {
+      id: crypto.randomUUID(),
+      type: 'adjustment',
+      trackId: targetTrack.id,
+      from: finalPosition,
+      durationInFrames,
+      label: label ?? t('media.adjustmentLayer', 'Adjustment Layer'),
+      effects: itemEffects,
+      effectOpacity: 1,
+    };
+
+    addItem(adjustmentItem);
+    // Select the new item
+    selectItems([adjustmentItem.id]);
+  }, []);
+
+  // Create adjustment layer with preset effects
+  const handleAddPreset = useCallback((presetId: string) => {
+    const preset = EFFECT_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    handleAddAdjustmentLayer(preset.effects, preset.name);
+  }, [handleAddAdjustmentLayer]);
+
+  // Add a single GPU effect — to selected clips, or as adjustment layer if nothing selected
+  const handleAddGpuEffect = useCallback((gpuEffectId: string) => {
+    const { selectedItemIds } = useSelectionStore.getState();
+    const { items, addEffect } = useTimelineStore.getState();
+
+    // Find selected visual items (not audio)
+    const visualIds = selectedItemIds.filter((id) => {
+      const item = items.find((i) => i.id === id);
+      return item && item.type !== 'audio';
+    });
+
+    if (visualIds.length > 0) {
+      const defaults = getGpuEffectDefaultParams(gpuEffectId);
+      const effect: GpuEffect = {
+        type: 'gpu-effect',
+        gpuEffectType: gpuEffectId,
+        params: defaults,
+      };
+      visualIds.forEach((id) => addEffect(id, effect));
+    } else {
+      // No visual selection — create adjustment layer with this effect
+      const defaults = getGpuEffectDefaultParams(gpuEffectId);
+      handleAddAdjustmentLayer(
+        [{ type: 'gpu-effect', gpuEffectType: gpuEffectId, params: defaults }],
+      );
+    }
+  }, [handleAddAdjustmentLayer]);
+
+  // GPU effect categories and preview thumbnails (static data, memoize once)
+  const gpuCategories = useMemo(() => getGpuCategoriesWithEffects(), []);
+  const allEffectEntries = useMemo(
+    () => gpuCategories.flatMap(({ effects: catEffects }) =>
+      catEffects.map((def) => ({ id: def.id, def }))
+    ),
+    [gpuCategories],
+  );
+  const presetIds = useMemo(() => EFFECT_PRESETS.map((p) => p.id), []);
+  const { previews: effectPreviews, trigger: triggerPreviews } = useEffectPreviews(allEffectEntries, presetIds);
+
+  // Category items for the vertical nav
+  const categories = [
+    { id: 'media' as const, icon: Film, label: t('media.title', 'Media') },
+    { id: 'text' as const, icon: Type, label: t('properties.text', 'Text') },
+    { id: 'shapes' as const, icon: Pentagon, label: t('media.shapes', 'Shapes') },
+    { id: 'effects' as const, icon: Layers, label: t('media.effects', 'Effects') },
+    { id: 'transitions' as const, icon: Blend, label: t('media.transitions', 'Transitions') },
+  ];
+
+  return (
+    <div className="flex h-full flex-shrink-0">
+      {/* Vertical Category Bar */}
+      <div
+        className="panel-header border-r border-border flex flex-col items-center flex-shrink-0"
+        style={{ width: EDITOR_LAYOUT_CSS_VALUES.sidebarRailWidth }}
+      >
+        {/* Header row - aligned with content panel header */}
+        <div
+          className="flex items-center justify-center border-b border-border w-full"
+          style={{ height: EDITOR_LAYOUT_CSS_VALUES.sidebarHeaderHeight }}
+        >
+          <button
+            onClick={toggleLeftSidebar}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+            data-tooltip={leftSidebarOpen ? t('timeline.hide', 'Collapse Panel') : t('timeline.show', 'Expand Panel')}
+            data-tooltip-side="right"
+          >
+            {leftSidebarOpen ? (
+              <ChevronLeft className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
+
+        {/* Category Icons */}
+        <div className="flex flex-col gap-1 py-1.5">
+          {categories.map(({ id, icon: Icon, label }) => (
+            <button
+              key={id}
+              onClick={() => {
+                if (activeTab === id && leftSidebarOpen) {
+                  toggleLeftSidebar();
+                } else {
+                  setActiveTab(id);
+                  if (!leftSidebarOpen) toggleLeftSidebar();
+                  if (id === 'effects') triggerPreviews();
+                }
+              }}
+              className={`
+                w-9 h-9 rounded-lg flex items-center justify-center transition-all
+                ${activeTab === id && leftSidebarOpen
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                }
+              `}
+              data-tooltip={label}
+              data-tooltip-side="right"
+            >
+              <Icon className="w-4 h-4" />
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Action Icons (Bottom) */}
+        <div className="flex flex-col gap-1 py-1.5 items-center w-full px-1 pb-3">
+          <button
+            onClick={() => {
+              if (activeTab === 'project' && leftSidebarOpen) {
+                toggleLeftSidebar();
+              } else {
+                setActiveTab('project');
+                if (!leftSidebarOpen) toggleLeftSidebar();
+              }
+            }}
+            className={`
+              w-9 h-9 rounded-lg flex items-center justify-center transition-all
+              ${activeTab === 'project' && leftSidebarOpen
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'text-primary hover:bg-secondary/50'
+              }
+            `}
+            data-tooltip={t('editor.project', 'Project')}
+            data-tooltip-side="right"
+          >
+            <Briefcase className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => setShowShortcutsDialog(true)}
+            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-primary hover:bg-secondary/50"
+            data-tooltip={t('settings.keyboardShortcuts', 'Keyboard Shortcuts')}
+            data-tooltip-side="right"
+          >
+            <Keyboard className="w-4 h-4" />
+          </button>
+
+          <a
+            href="https://github.com/walterlow/freecut"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-primary hover:bg-secondary/50"
+            data-tooltip={t('landing.starGithub', 'View on GitHub')}
+            data-tooltip-side="right"
+          >
+            <Github className="w-4 h-4" />
+          </a>
+
+          <button
+            onClick={() => setShowSettingsDialog(true)}
+            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-red-500 hover:bg-red-500/10 mt-1"
+            data-tooltip={t('settings.title', 'Settings')}
+            data-tooltip-side="right"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <ShortcutsDialog
+        open={showShortcutsDialog}
+        onOpenChange={setShowShortcutsDialog}
+      />
+
+      <SettingsDialog
+        open={showSettingsDialog}
+        onOpenChange={setShowSettingsDialog}
+      />
+
+      {/* Content Panel */}
+      <div
+        className={`panel-bg border-r border-border overflow-hidden relative ${
+          leftSidebarOpen ? '' : 'w-0'
+        }`}
+        style={leftSidebarOpen ? { width: sidebarWidth, transition: isResizingRef.current ? 'none' : 'width 200ms' } : { transition: 'width 200ms' }}
+      >
+        {/* Use Activity for React 19 performance optimization - defers updates when hidden */}
+        <Activity mode={leftSidebarOpen ? 'visible' : 'hidden'}>
+          <div className="h-full flex flex-col" style={{ width: sidebarWidth }}>
+          {/* Panel Header */}
+          <div
+            className="flex items-center px-3 border-b border-border flex-shrink-0"
+            style={{ height: EDITOR_LAYOUT_CSS_VALUES.sidebarHeaderHeight }}
+          >
+            <span className="text-sm font-medium text-foreground">
+              {categories.find((c) => c.id === activeTab)?.label}
+            </span>
+          </div>
+
+          {/* Project Tab */}
+          <div className={`flex-1 overflow-y-auto p-3 ${activeTab === 'project' ? 'block' : 'hidden'}`}>
+            {projectId && project && (
+              <Toolbar
+                projectId={projectId}
+                project={project}
+                isDirty={isDirty}
+                onSave={onSave}
+                onExport={onExport}
+                onExportBundle={onExportBundle}
+              />
+            )}
+          </div>
+
+          {/* Media Tab - Full Media Library */}
+          <div className={`flex-1 overflow-hidden ${activeTab === 'media' ? 'block' : 'hidden'}`}>
+            <MediaLibrary />
+          </div>
+
+          {/* Text Tab */}
+          <div className={`flex-1 overflow-y-auto p-3 ${activeTab === 'text' ? 'block' : 'hidden'}`}>
+            <div className="space-y-3">
+              <button
+                onClick={handleAddText}
+                className="w-full flex items-center gap-3 p-3 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+              >
+                <div className="w-9 h-9 rounded-md bg-timeline-text/20 border border-timeline-text/50 flex items-center justify-center group-hover:bg-timeline-text/30 flex-shrink-0">
+                  <Type className="w-4 h-4 text-timeline-text" />
+                </div>
+                <span className="text-sm text-muted-foreground group-hover:text-foreground">
+                  {t('media.addText', 'Add Text')}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Shapes Tab */}
+          <div className={`flex-1 overflow-y-auto p-3 ${activeTab === 'shapes' ? 'block' : 'hidden'}`}>
+            <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    onClick={() => handleAddShape('rectangle')}
+                    className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                  >
+                    <div className="w-7 h-7 rounded border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70">
+                      <Square className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground group-hover:text-foreground">
+                      {t('media.rectangle', 'Rectangle')}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddShape('circle')}
+                    className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                  >
+                    <div className="w-7 h-7 rounded border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70">
+                      <Circle className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground group-hover:text-foreground">
+                      {t('media.circle', 'Circle')}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddShape('triangle')}
+                    className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                  >
+                    <div className="w-7 h-7 rounded border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70">
+                      <Triangle className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground group-hover:text-foreground">
+                      {t('media.triangle', 'Triangle')}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddShape('ellipse')}
+                    className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                  >
+                    <div className="w-7 h-7 rounded border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70">
+                      <Circle className="w-3.5 h-2.5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground group-hover:text-foreground">
+                      {t('media.ellipse', 'Ellipse')}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddShape('star')}
+                    className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                  >
+                    <div className="w-7 h-7 rounded border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70">
+                      <Star className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground group-hover:text-foreground">
+                      {t('media.star', 'Star')}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddShape('polygon')}
+                    className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                  >
+                    <div className="w-7 h-7 rounded border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70">
+                      <Hexagon className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground group-hover:text-foreground">
+                      {t('media.polygon', 'Polygon')}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddShape('heart')}
+                    className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                  >
+                    <div className="w-7 h-7 rounded border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70">
+                      <Heart className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground group-hover:text-foreground">
+                      {t('media.heart', 'Heart')}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => useMaskEditorStore.getState().startShapePenMode()}
+                    className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                    title={t('media.drawCustomShape', 'Draw a custom shape mask with the pen tool')}
+                  >
+                    <div className="w-7 h-7 rounded border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70">
+                      <Pen className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground group-hover:text-foreground">
+                      {t('media.pen', 'Pen')}
+                    </span>
+                  </button>
+            </div>
+          </div>
+
+          {/* Effects Tab */}
+          <div className={`flex-1 overflow-y-auto p-3 ${activeTab === 'effects' ? 'block' : 'hidden'}`}>
+            <div className="space-y-3">
+              {/* Blank Adjustment Layer */}
+              <button
+                onClick={() => handleAddAdjustmentLayer()}
+                className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-md border border-border bg-secondary/50 flex items-center justify-center group-hover:bg-secondary/70 flex-shrink-0">
+                  <Layers className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs text-muted-foreground group-hover:text-foreground">
+                    {t('media.blankAdjustmentLayer', 'Blank Adjustment Layer')}
+                  </div>
+                </div>
+              </button>
+
+              {/* Presets */}
+              <div>
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                  {t('media.presets', 'Presets')}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {EFFECT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleAddPreset(preset.id)}
+                      className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                    >
+                      {effectPreviews.has(`preset:${preset.id}`) ? (
+                        <img
+                          src={effectPreviews.get(`preset:${preset.id}`)}
+                          alt=""
+                          className="w-full aspect-video rounded-sm object-cover"
+                        />
+                      ) : (
+                        <div className="w-full aspect-video rounded-sm bg-muted flex items-center justify-center">
+                          <Sparkles className="w-3 h-3 text-muted-foreground/50" />
+                        </div>
+                      )}
+                      <span className="text-[9px] text-muted-foreground group-hover:text-foreground text-center leading-tight">
+                        {preset.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* GPU Effects by Category */}
+              {gpuCategories.map(({ category, effects: catEffects }) => (
+                <div key={category}>
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    {category}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {catEffects.map((def) => (
+                      <button
+                        key={def.id}
+                        onClick={() => handleAddGpuEffect(def.id)}
+                        className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-primary/50 transition-colors group"
+                      >
+                        {effectPreviews.has(def.id) ? (
+                          <img
+                            src={effectPreviews.get(def.id)}
+                            alt=""
+                            className="w-full aspect-video rounded-sm object-cover"
+                          />
+                        ) : (
+                          <div className="w-full aspect-video rounded-sm bg-muted" />
+                        )}
+                        <span className="text-[9px] text-muted-foreground group-hover:text-foreground text-center leading-tight truncate w-full">
+                          {def.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Transitions Tab */}
+          <div className={`flex-1 overflow-hidden ${activeTab === 'transitions' ? 'block' : 'hidden'}`}>
+            <TransitionsPanel />
+          </div>
+          </div>
+        </Activity>
+        {/* Resize Handle */}
+        {leftSidebarOpen && (
+          <div
+            onMouseDown={handleResizeStart}
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary/50 transition-colors z-10"
+          />
+        )}
+      </div>
+    </div>
+  );
+});

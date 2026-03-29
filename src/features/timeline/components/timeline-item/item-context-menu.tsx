@@ -1,0 +1,296 @@
+import { memo, ReactNode, useMemo } from 'react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import { useSelectionStore } from '@/shared/state/selection';
+import { PROPERTY_LABELS, type AnimatableProperty } from '@/types/keyframe';
+import type { PropertyKeyframes } from '@/types/keyframe';
+import type { MediaTranscriptModel } from '@/types/storage';
+import {
+  WHISPER_MODEL_LABELS,
+  WHISPER_MODEL_OPTIONS,
+} from '@/shared/utils/whisper-settings';
+import { useTranslation } from 'react-i18next';
+
+interface ItemContextMenuProps {
+  children: ReactNode;
+  trackLocked: boolean;
+  isSelected: boolean;
+  canJoinSelected: boolean;
+  hasJoinableLeft: boolean;
+  hasJoinableRight: boolean;
+  /** Which edge was closer when context menu was triggered */
+  closerEdge: 'left' | 'right' | null;
+  /** Keyframed properties for the item (used to build clear submenu) */
+  keyframedProperties?: PropertyKeyframes[];
+  onJoinSelected: () => void;
+  onJoinLeft: () => void;
+  onJoinRight: () => void;
+  onRippleDelete: () => void;
+  onDelete: () => void;
+  onClearAllKeyframes?: () => void;
+  onClearPropertyKeyframes?: (property: AnimatableProperty) => void;
+  onBentoLayout?: () => void;
+  /** Whether this item is a video clip (enables freeze frame option) */
+  isVideoItem?: boolean;
+  /** Whether the playhead is within this item's bounds */
+  playheadInBounds?: boolean;
+  onFreezeFrame?: () => void;
+  canGenerateCaptions?: boolean;
+  canRegenerateCaptions?: boolean;
+  isGeneratingCaptions?: boolean;
+  defaultCaptionModel?: MediaTranscriptModel;
+  onGenerateCaptions?: (model: MediaTranscriptModel) => void;
+  onRegenerateCaptions?: (model: MediaTranscriptModel) => void;
+  /** Whether this item is a composition item (enables enter/dissolve options) */
+  isCompositionItem?: boolean;
+  onEnterComposition?: () => void;
+  onDissolveComposition?: () => void;
+  /** Whether multiple items are selected (enables pre-comp creation) */
+  canCreatePreComp?: boolean;
+  onCreatePreComp?: () => void;
+}
+
+/**
+ * Context menu for timeline items
+ * Provides delete, ripple delete, join, and keyframe clearing operations
+ */
+export const ItemContextMenu = memo(function ItemContextMenu({
+  children,
+  trackLocked,
+  isSelected,
+  canJoinSelected,
+  hasJoinableLeft,
+  hasJoinableRight,
+  closerEdge,
+  keyframedProperties,
+  onJoinSelected,
+  onJoinLeft,
+  onJoinRight,
+  onRippleDelete,
+  onDelete,
+  onClearAllKeyframes,
+  onClearPropertyKeyframes,
+  onBentoLayout,
+  isVideoItem,
+  playheadInBounds,
+  onFreezeFrame,
+  canGenerateCaptions,
+  canRegenerateCaptions,
+  isGeneratingCaptions,
+  defaultCaptionModel,
+  onGenerateCaptions,
+  onRegenerateCaptions,
+  isCompositionItem,
+  onEnterComposition,
+  onDissolveComposition,
+  canCreatePreComp,
+  onCreatePreComp,
+}: ItemContextMenuProps) {
+  const { t } = useTranslation();
+  const selectedCount = useSelectionStore((s) => s.selectedItemIds.length);
+  // Filter to only properties that actually have keyframes
+  const propertiesWithKeyframes = useMemo(() => {
+    if (!keyframedProperties) return [];
+    return keyframedProperties.filter(p => p.keyframes.length > 0);
+  }, [keyframedProperties]);
+  const explicitCaptionModelOptions = useMemo(
+    () => WHISPER_MODEL_OPTIONS.filter((option) => option.value !== defaultCaptionModel),
+    [defaultCaptionModel]
+  );
+
+  const hasKeyframes = propertiesWithKeyframes.length > 0;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild disabled={trackLocked}>
+        {children}
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {/* Join options - show based on which edge is closer */}
+        {(() => {
+          // Determine which join option to show based on closer edge
+          const showJoinLeft = hasJoinableLeft && (closerEdge === 'left' || !hasJoinableRight);
+          const showJoinRight = hasJoinableRight && (closerEdge === 'right' || !hasJoinableLeft);
+          const hasJoinOption = showJoinLeft || showJoinRight || canJoinSelected;
+
+          if (!hasJoinOption) return null;
+
+          return (
+            <>
+              {showJoinLeft && (
+                <ContextMenuItem onClick={onJoinLeft}>
+                  {t('timeline.joinWithPrevious', 'Join with Previous')}
+                  <ContextMenuShortcut>J</ContextMenuShortcut>
+                </ContextMenuItem>
+              )}
+              {showJoinRight && (
+                <ContextMenuItem onClick={onJoinRight}>
+                  {t('timeline.joinWithNext', 'Join with Next')}
+                  <ContextMenuShortcut>J</ContextMenuShortcut>
+                </ContextMenuItem>
+              )}
+              {canJoinSelected && (
+                <ContextMenuItem onClick={onJoinSelected}>
+                  {t('timeline.joinSelected', 'Join Selected')}
+                  <ContextMenuShortcut>J</ContextMenuShortcut>
+                </ContextMenuItem>
+              )}
+              <ContextMenuSeparator />
+            </>
+          );
+        })()}
+
+        {/* Clear Keyframes submenu - only show if item has keyframes */}
+        {hasKeyframes && (
+          <>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>{t('timeline.clearKeyframes', 'Clear Keyframes')}</ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                <ContextMenuItem onClick={onClearAllKeyframes}>
+                  {t('timeline.clearAll', 'Clear All')}
+                  <ContextMenuShortcut>Shift+K</ContextMenuShortcut>
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                {propertiesWithKeyframes.map(({ property }) => (
+                  <ContextMenuItem
+                    key={property}
+                    onClick={() => onClearPropertyKeyframes?.(property)}
+                  >
+                    {PROPERTY_LABELS[property]}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuSeparator />
+          </>
+        )}
+
+        {/* Bento Layout - only show when 2+ items selected */}
+        {selectedCount >= 2 && onBentoLayout && (
+          <>
+            <ContextMenuItem onClick={onBentoLayout}>
+              {t('timeline.bentoLayout', 'Bento Layout...')}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+
+        {/* Freeze Frame - only show for video items when playhead is within bounds */}
+        {isVideoItem && playheadInBounds && onFreezeFrame && (
+          <>
+            <ContextMenuItem onClick={onFreezeFrame}>
+              {t('timeline.insertFreezeFrame', 'Insert Freeze Frame')}
+              <ContextMenuShortcut>Shift+F</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+
+        {canGenerateCaptions && onGenerateCaptions && (
+          <>
+            {isGeneratingCaptions ? (
+              <ContextMenuItem disabled>
+                {t('timeline.updatingCaptions', 'Updating Captions...')}
+              </ContextMenuItem>
+            ) : (
+              <>
+                <ContextMenuSub>
+                  <ContextMenuSubTrigger>{t('timeline.generateCaptions', 'Generate Captions for Segment')}</ContextMenuSubTrigger>
+                  <ContextMenuSubContent className="w-48">
+                    {defaultCaptionModel && (
+                      <>
+                        <ContextMenuItem onClick={() => onGenerateCaptions(defaultCaptionModel)}>
+                          {`Default (${WHISPER_MODEL_LABELS[defaultCaptionModel]})`}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                      </>
+                    )}
+                    {explicitCaptionModelOptions.map((option) => (
+                      <ContextMenuItem
+                        key={option.value}
+                        onClick={() => onGenerateCaptions(option.value)}
+                      >
+                        {option.label}
+                      </ContextMenuItem>
+                    ))}
+                  </ContextMenuSubContent>
+                </ContextMenuSub>
+
+                {canRegenerateCaptions && onRegenerateCaptions && (
+                  <ContextMenuSub>
+                    <ContextMenuSubTrigger>{t('timeline.regenerateCaptions', 'Regenerate Captions for Segment')}</ContextMenuSubTrigger>
+                    <ContextMenuSubContent className="w-48">
+                      {defaultCaptionModel && (
+                        <>
+                          <ContextMenuItem onClick={() => onRegenerateCaptions(defaultCaptionModel)}>
+                            {`Default (${WHISPER_MODEL_LABELS[defaultCaptionModel]})`}
+                          </ContextMenuItem>
+                          <ContextMenuSeparator />
+                        </>
+                      )}
+                      {explicitCaptionModelOptions.map((option) => (
+                        <ContextMenuItem
+                          key={option.value}
+                          onClick={() => onRegenerateCaptions(option.value)}
+                        >
+                          {option.label}
+                        </ContextMenuItem>
+                      ))}
+                    </ContextMenuSubContent>
+                  </ContextMenuSub>
+                )}
+              </>
+            )}
+            <ContextMenuSeparator />
+          </>
+        )}
+
+        {/* Composition operations */}
+        {isCompositionItem && onEnterComposition && (
+          <ContextMenuItem onClick={onEnterComposition}>
+            {t('timeline.enterComposition', 'Enter Composition')}
+          </ContextMenuItem>
+        )}
+        {isCompositionItem && onDissolveComposition && (
+          <ContextMenuItem onClick={onDissolveComposition}>
+            {t('timeline.dissolvePreComp', 'Dissolve Pre-Comp')}
+          </ContextMenuItem>
+        )}
+        {canCreatePreComp && onCreatePreComp && (
+          <ContextMenuItem onClick={onCreatePreComp}>
+            {t('timeline.createPreComp', 'Create Pre-Composition')}
+          </ContextMenuItem>
+        )}
+        {((isCompositionItem && (onEnterComposition || onDissolveComposition)) || (canCreatePreComp && onCreatePreComp)) && (
+          <ContextMenuSeparator />
+        )}
+
+        <ContextMenuItem
+          onClick={onRippleDelete}
+          disabled={!isSelected}
+          className="text-destructive focus:text-destructive"
+        >
+          {t('timeline.rippleDelete', 'Ripple Delete')}
+          <ContextMenuShortcut>Ctrl+Del</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={onDelete}
+          disabled={!isSelected}
+          className="text-destructive focus:text-destructive"
+        >
+          {t('timeline.delete', 'Delete')}
+          <ContextMenuShortcut>Del</ContextMenuShortcut>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+});
