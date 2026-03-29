@@ -392,7 +392,7 @@ function Settings() {
             <p>
               Built with React and modern web technologies.{' '}
               <a
-                href="https://github.com/walterlow/freecut"
+                href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"

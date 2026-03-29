@@ -479,7 +479,7 @@ export const MediaSidebar = memo(function MediaSidebar({
           </button>
 
           <a
-            href="https://github.com/walterlow/freecut"
+            href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame"
             target="_blank"
             rel="noopener noreferrer"
             className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-primary hover:bg-secondary/50"

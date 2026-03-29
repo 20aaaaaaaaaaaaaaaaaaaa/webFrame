@@ -256,7 +256,7 @@ export function ProjectsPage() {
                 asChild
               >
                 <a
-                  href="https://github.com/walterlow/freecut"
+                  href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame"
                   target="_blank"
                   rel="noopener noreferrer"
                   data-tooltip={t('common.viewOnGithub')}

@@ -85,7 +85,7 @@ function LandingPage() {
       answer: (
         <p>
           {t('faq.a8_1', 'webFrame is based on the open-source project')}{' '}
-          <a href="https://github.com/walterlow/freecut" target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
+          <a href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame" target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
             freecut
           </a>
           {' '}
@@ -137,7 +137,7 @@ function LandingPage() {
 
             <Button asChild variant="outline" size="lg" className="gap-2">
               <a
-                href="https://github.com/walterlow/freecut"
+                href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -197,7 +197,7 @@ function LandingPage() {
 
             <Button asChild variant="outline" size="lg" className="gap-2">
               <a
-                href="https://github.com/walterlow/freecut"
+                href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame"
                 target="_blank"
                 rel="noopener noreferrer"
               >

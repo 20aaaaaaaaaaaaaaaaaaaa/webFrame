@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { createLogger } from '@/shared/logging/logger';
@@ -67,7 +67,7 @@ function NewProject() {
             asChild
           >
             <a
-              href="https://github.com/walterlow/freecut"
+              href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame"
               target="_blank"
               rel="noopener noreferrer"
               data-tooltip="View on GitHub"
