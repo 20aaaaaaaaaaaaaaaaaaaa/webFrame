@@ -522,7 +522,7 @@ export const MediaSidebar = memo(function MediaSidebar({
           <div className="h-full flex flex-col" style={{ width: sidebarWidth }}>
           {/* Panel Header */}
           <div
-            className="flex items-center px-3 border-b border-border flex-shrink-0"
+            className="flex items-center px-3 pl-8 border-b border-border flex-shrink-0"
             style={{ height: EDITOR_LAYOUT_CSS_VALUES.sidebarHeaderHeight }}
           >
             <span className="text-sm font-medium text-foreground">

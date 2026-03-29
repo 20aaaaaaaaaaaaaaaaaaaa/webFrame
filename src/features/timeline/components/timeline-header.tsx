@@ -232,7 +232,7 @@ export const TimelineHeader = memo(function TimelineHeader({
 
   return (
     <div
-      className="flex items-center justify-between px-3 border-b border-border"
+      className="flex items-center justify-between px-3 pl-8 border-b border-border"
       style={{ height: EDITOR_LAYOUT_CSS_VALUES.timelineHeaderHeight }}
       role="toolbar"
       aria-label={t('timeline.timelineControls', 'Timeline controls')}

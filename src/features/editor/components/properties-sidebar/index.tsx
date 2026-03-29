@@ -90,7 +90,7 @@ export const PropertiesSidebar = memo(function PropertiesSidebar() {
           <div className="h-full flex flex-col" style={{ width: rightSidebarWidth }}>
             {/* Sidebar Header */}
             <div
-              className="flex items-center justify-between px-3 border-b border-border flex-shrink-0"
+              className="flex items-center justify-between px-3 pl-8 border-b border-border flex-shrink-0"
               style={{ height: EDITOR_LAYOUT_CSS_VALUES.sidebarHeaderHeight }}
             >
               <h2 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground flex items-center gap-2">
