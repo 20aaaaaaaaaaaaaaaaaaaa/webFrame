@@ -35,14 +35,14 @@ interface PanelLayoutState {
   resetLayout: () => void;
 }
 
-const DEFAULT_MAIN_ORDER: PanelId[] = ['preview'];
+const DEFAULT_MAIN_ORDER: PanelId[] = ['timeline', 'media', 'properties', 'preview'];
 
 export const usePanelLayoutStore = create<PanelLayoutState>()(
   persist(
     (set, get) => ({
-      dockedLeft: 'media',
-      dockedRight: 'properties',
-      dockedBottom: 'timeline',
+      dockedLeft: null,
+      dockedRight: null,
+      dockedBottom: null,
       mainOrder: [...DEFAULT_MAIN_ORDER],
       draggingPanel: null,
       dropTarget: null,
@@ -140,9 +140,9 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
 
       resetLayout: () => {
         set({
-          dockedLeft: 'media',
-          dockedRight: 'properties',
-          dockedBottom: 'timeline',
+          dockedLeft: null,
+          dockedRight: null,
+          dockedBottom: null,
           mainOrder: [...DEFAULT_MAIN_ORDER],
           draggingPanel: null,
           dropTarget: null,
@@ -150,7 +150,7 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
       },
     }),
     {
-      name: 'webframe-panel-layout-v3', // v3 enforces professional layout (docked left/right instead of all in mainOrder)
+      name: 'webframe-panel-layout-v4', // v4 enforces side-by-side vertical video layout
       partialize: (s) => ({
         dockedLeft: s.dockedLeft,
         dockedRight: s.dockedRight,
@@ -162,8 +162,11 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
 );
 
 export const selectIsDefault = (s: PanelLayoutState): boolean =>
-  s.dockedLeft === 'media' &&
-  s.dockedRight === 'properties' &&
-  s.dockedBottom === 'timeline' &&
-  s.mainOrder.length === 1 &&
-  s.mainOrder[0] === 'preview';
+  s.dockedLeft === null &&
+  s.dockedRight === null &&
+  s.dockedBottom === null &&
+  s.mainOrder.length === 4 &&
+  s.mainOrder[0] === 'timeline' &&
+  s.mainOrder[1] === 'media' &&
+  s.mainOrder[2] === 'properties' &&
+  s.mainOrder[3] === 'preview';
