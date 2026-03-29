@@ -20,7 +20,9 @@
 ## Quick Start
 
 ### 🚀 Portable Version (No Installation Required)
-We provide a standalone **"Click and Run"** executable version. You can simply double-click the `webFrame-Portatif.exe` file (once downloaded or provided), and the editor will seamlessly launch in your default browser without any setup.
+We provide a standalone **"Click and Run"** executable version. You can download and simply double-click the `webFrame-Portatif.exe` file, and the editor will seamlessly launch in your default browser without any setup.
+
+📥 **[Download webFrame-Portatif.exe from GitHub Releases](https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame/releases/latest)**
 
 ### 💻 Developer Setup (Running from source)
 ```bash
