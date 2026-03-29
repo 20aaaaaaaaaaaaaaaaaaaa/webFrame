@@ -2,15 +2,16 @@
 
 **Browser-based multi-track video editor.**
 
-This project is an evolved version of [FreeCut](https://github.com/walterlow/freecut) by Walter (MIT License). While keeping the powerful core, **webFrame** focuses on stability, localization, and a professional workspace experience. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for attribution.
+*First of all, a huge thanks and "Merhaba!" (Hello!) to Walter! 👋 This project is an evolved branch of his amazing [FreeCut](https://github.com/walterlow/freecut) (MIT License). We built upon his powerful timeline and video rendering engine to create a more localized, flexible workspace.*
 
-✨ **What's New in webFrame?**
-We have significantly improved the original codebase with several key features and architectural changes:
+✨ **webFrame Exclusive Features**
+We focused purely on professional workspace usability and Turkish localization:
 
-- **Dockable Panel System:** Fully resizable, drag-and-drop panel interface with edge docking capabilities (similar to Premiere Pro).
-- **Responsive Workspace UI:** Floating grip handles instead of fixed header bars to maximize video real estate, plus dynamically wrapping transport controls for narrow screens.
-- **Native Turkish Support:** Full localization to ensure a seamless editing experience.
-- **Minimalist Interface:** Removed development debug panels and refined the landing page for a clean, distraction-free environment.
+- **Premiere-Style Dockable Panels:** You can now drag, drop, and dock panels anywhere. Want a vertical video workspace? Dock the preview to the right side seamlessly!
+- **Responsive Workspace UI:** We removed fixed header bars to give you more screen space. Panels now have floating grip handles, and transport controls wrap dynamically on narrow screens so you never lose access to your play buttons.
+- **Native Turkish Support:** The entire interface has been translated to Turkish for local creators.
+- **Minimalist Focus:** We stripped away the development debugging panels and simplified the UI for a clean, distraction-free editing environment.
+
 ## Quick Start
 
 ```bash
@@ -19,17 +20,6 @@ npm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173) in Chrome.
-
-## Features
-
-- Multi-track timeline (video, audio, text, image, shapes)
-- Trim, split, join, ripple delete, rate stretch
-- CSS filter effects, glitch effects, halftone, vignette
-- Keyframe animation with Bezier curve editor
-- Transitions (fade, wipe, slide, 3D flip, clock, iris)
-- WebCodecs-based export (MP4, MOV, WebM, MKV + MP3, AAC, WAV)
-- Real-time canvas preview with transform gizmo
-- Undo/redo, auto-save, project bundles
 
 ## Tech Stack
 
