@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, memo, lazy, Suspense } from 'react';
+import { useEffect, useState, useRef, useCallback, memo, lazy, Suspense, Fragment } from 'react';
 import { createLogger } from '@/shared/logging/logger';
 import {
   ResizablePanelGroup,
@@ -273,8 +273,9 @@ export const Editor = memo(function Editor({ projectId, project }: EditorProps) 
   }, [editorLayout.graphPanelSizeIncrease, editorLayout.timelineMaxSize]);
 
   // ── Panel layout state ──
-  const dockedPanel = usePanelLayoutStore((s) => s.dockedPanel);
-  const dockedSide = usePanelLayoutStore((s) => s.dockedSide);
+  const dockedLeft = usePanelLayoutStore((s) => s.dockedLeft);
+  const dockedRight = usePanelLayoutStore((s) => s.dockedRight);
+  const dockedBottom = usePanelLayoutStore((s) => s.dockedBottom);
   const mainOrder = usePanelLayoutStore((s) => s.mainOrder);
 
   // Render panel content by ID — wrapped with error boundary + optional lock region
@@ -331,113 +332,71 @@ export const Editor = memo(function Editor({ projectId, project }: EditorProps) 
   );
 
   // ── Build the layout ──
-  // Standard mode: 3 top + 1 bottom (mainOrder has 4 panels)
-  // Docked mode: 1 full-height panel + (2 top + 1 bottom) in remaining space
-
-  const renderStandardLayout = () => (
-    <ResizablePanelGroup direction="vertical" className="flex-1">
-      {/* Top row: 3 panels */}
-      <ResizablePanel
-        defaultSize={100 - editorLayout.timelineDefaultSize}
-        minSize={100 - editorLayout.timelineMaxSize}
-        maxSize={100 - editorLayout.timelineMinSize}
-      >
-        <div className="h-full flex overflow-hidden relative">
-          <DockablePanel panelId={mainOrder[0]!}>
-            {renderPanelContent(mainOrder[0]!)}
-          </DockablePanel>
-          <DockablePanel panelId={mainOrder[1]!} className="flex-1">
-            {renderPanelContent(mainOrder[1]!)}
-          </DockablePanel>
-          <DockablePanel panelId={mainOrder[2]!}>
-            {renderPanelContent(mainOrder[2]!)}
-          </DockablePanel>
-        </div>
-      </ResizablePanel>
-
-      <ResizableHandle withHandle className={isMaskEditingActive ? 'pointer-events-none opacity-60' : undefined} />
-
-      {/* Bottom: 1 panel */}
-      <ResizablePanel
-        ref={timelinePanelRef}
-        defaultSize={editorLayout.timelineDefaultSize}
-        minSize={editorLayout.timelineMinSize}
-        maxSize={editorLayout.timelineMaxSize}
-      >
-        <DockablePanel panelId={mainOrder[3]!} className="h-full">
-          {renderPanelContent(mainOrder[3]!)}
-        </DockablePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  );
-
-  const renderDockedLayout = () => {
-    // mainOrder has 3 panels (docked panel is separate)
-    const dockedContent = (
-      <DockablePanel panelId={dockedPanel!} className="h-full">
-        {renderPanelContent(dockedPanel!)}
-      </DockablePanel>
-    );
-
-    const mainContent = (
-      <ResizablePanelGroup direction="vertical" className="flex-1">
-        {/* Top: 2 panels in a row */}
-        <ResizablePanel
-          defaultSize={100 - editorLayout.timelineDefaultSize}
-          minSize={100 - editorLayout.timelineMaxSize}
-          maxSize={100 - editorLayout.timelineMinSize}
-        >
-          <div className="h-full flex overflow-hidden relative">
-            <DockablePanel panelId={mainOrder[0]!}>
-              {renderPanelContent(mainOrder[0]!)}
-            </DockablePanel>
-            <DockablePanel panelId={mainOrder[1]!} className="flex-1">
-              {renderPanelContent(mainOrder[1]!)}
-            </DockablePanel>
-          </div>
-        </ResizablePanel>
-
-        <ResizableHandle withHandle className={isMaskEditingActive ? 'pointer-events-none opacity-60' : undefined} />
-
-        {/* Bottom */}
-        <ResizablePanel
-          ref={timelinePanelRef}
-          defaultSize={editorLayout.timelineDefaultSize}
-          minSize={editorLayout.timelineMinSize}
-          maxSize={editorLayout.timelineMaxSize}
-        >
-          <DockablePanel panelId={mainOrder[2]!} className="h-full">
-            {renderPanelContent(mainOrder[2]!)}
-          </DockablePanel>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    );
-
-    return (
+  const renderLayout = () => {
+    // Generate the horizontal main sequence
+    const horizontalSequence = (
       <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {dockedSide === 'left' ? (
+        {dockedLeft && (
           <>
-            <ResizablePanel defaultSize={40} minSize={15} maxSize={60}>
-              {dockedContent}
+            <ResizablePanel defaultSize={20} minSize={5} maxSize={80}>
+              <DockablePanel panelId={dockedLeft} className="h-full">
+                {renderPanelContent(dockedLeft)}
+              </DockablePanel>
             </ResizablePanel>
             <ResizableHandle withHandle className={isMaskEditingActive ? 'pointer-events-none opacity-60' : undefined} />
-            <ResizablePanel defaultSize={60} minSize={30}>
-              {mainContent}
-            </ResizablePanel>
           </>
-        ) : (
+        )}
+        
+        {mainOrder.length > 0 && (
+          <ResizablePanel defaultSize={60} minSize={10}>
+            <ResizablePanelGroup direction="horizontal">
+              {mainOrder.map((panelId, i) => (
+                <Fragment key={panelId}>
+                  <ResizablePanel defaultSize={100 / mainOrder.length} minSize={5}>
+                    <DockablePanel panelId={panelId} className="h-full">
+                      {renderPanelContent(panelId)}
+                    </DockablePanel>
+                  </ResizablePanel>
+                  {i < mainOrder.length - 1 && (
+                    <ResizableHandle withHandle className={isMaskEditingActive ? 'pointer-events-none opacity-60' : undefined} />
+                  )}
+                </Fragment>
+              ))}
+            </ResizablePanelGroup>
+          </ResizablePanel>
+        )}
+
+        {dockedRight && (
           <>
-            <ResizablePanel defaultSize={60} minSize={30}>
-              {mainContent}
-            </ResizablePanel>
             <ResizableHandle withHandle className={isMaskEditingActive ? 'pointer-events-none opacity-60' : undefined} />
-            <ResizablePanel defaultSize={40} minSize={15} maxSize={60}>
-              {dockedContent}
+            <ResizablePanel defaultSize={20} minSize={5} maxSize={80}>
+              <DockablePanel panelId={dockedRight} className="h-full">
+                {renderPanelContent(dockedRight)}
+              </DockablePanel>
             </ResizablePanel>
           </>
         )}
       </ResizablePanelGroup>
     );
+
+    // If bottom dock exists, wrap horizontally in vertical grid
+    if (dockedBottom) {
+      return (
+        <ResizablePanelGroup direction="vertical" className="flex-1">
+          <ResizablePanel defaultSize={100 - editorLayout.timelineDefaultSize} minSize={100 - editorLayout.timelineMaxSize} maxSize={100 - editorLayout.timelineMinSize}>
+            {horizontalSequence}
+          </ResizablePanel>
+          <ResizableHandle withHandle className={isMaskEditingActive ? 'pointer-events-none opacity-60' : undefined} />
+          <ResizablePanel ref={timelinePanelRef} defaultSize={editorLayout.timelineDefaultSize} minSize={editorLayout.timelineMinSize} maxSize={editorLayout.timelineMaxSize}>
+            <DockablePanel panelId={dockedBottom} className="h-full">
+              {renderPanelContent(dockedBottom)}
+            </DockablePanel>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      );
+    }
+
+    return horizontalSequence;
   };
 
   return (
@@ -448,7 +407,7 @@ export const Editor = memo(function Editor({ projectId, project }: EditorProps) 
       aria-label="webFrame Video Editor"
     >
       {/* Main editor layout */}
-      {dockedPanel ? renderDockedLayout() : renderStandardLayout()}
+      {renderLayout()}
 
       {/* Edge drop zones — only visible during drag */}
       <EdgeDropZone side="left" />
