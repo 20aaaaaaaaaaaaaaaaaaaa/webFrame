@@ -35,13 +35,13 @@ interface PanelLayoutState {
   resetLayout: () => void;
 }
 
-const DEFAULT_MAIN_ORDER: PanelId[] = ['media', 'preview', 'properties'];
+const DEFAULT_MAIN_ORDER: PanelId[] = ['preview'];
 
 export const usePanelLayoutStore = create<PanelLayoutState>()(
   persist(
     (set, get) => ({
-      dockedLeft: null,
-      dockedRight: null,
+      dockedLeft: 'media',
+      dockedRight: 'properties',
       dockedBottom: 'timeline',
       mainOrder: [...DEFAULT_MAIN_ORDER],
       draggingPanel: null,
@@ -138,16 +138,19 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
         set({ draggingPanel: null, dropTarget: null });
       },
 
-      resetLayout: () =>
+      resetLayout: () => {
         set({
-          dockedLeft: null,
-          dockedRight: null,
+          dockedLeft: 'media',
+          dockedRight: 'properties',
           dockedBottom: 'timeline',
           mainOrder: [...DEFAULT_MAIN_ORDER],
-        }),
+          draggingPanel: null,
+          dropTarget: null,
+        });
+      },
     }),
     {
-      name: 'webframe-panel-layout-v2', // v2 to override old v1 schema automatically
+      name: 'webframe-panel-layout-v3', // v3 enforces professional layout (docked left/right instead of all in mainOrder)
       partialize: (s) => ({
         dockedLeft: s.dockedLeft,
         dockedRight: s.dockedRight,
@@ -159,10 +162,8 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
 );
 
 export const selectIsDefault = (s: PanelLayoutState): boolean =>
-  s.dockedLeft === null &&
-  s.dockedRight === null &&
+  s.dockedLeft === 'media' &&
+  s.dockedRight === 'properties' &&
   s.dockedBottom === 'timeline' &&
-  s.mainOrder.length === 3 &&
-  s.mainOrder[0] === 'media' &&
-  s.mainOrder[1] === 'preview' &&
-  s.mainOrder[2] === 'properties';
+  s.mainOrder.length === 1 &&
+  s.mainOrder[0] === 'preview';
