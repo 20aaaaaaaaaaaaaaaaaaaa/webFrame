@@ -2,8 +2,15 @@
 
 **Browser-based multi-track video editor.**
 
-Based on [FreeCut](https://github.com/walterlow/freecut) (MIT License). See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for attribution.
+This project is an evolved version of [FreeCut](https://github.com/walterlow/freecut) by Walter (MIT License). While keeping the powerful core, **webFrame** focuses on stability, localization, and a professional workspace experience. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for attribution.
 
+✨ **What's New in webFrame?**
+We have significantly improved the original codebase with several key features and architectural changes:
+
+- **Dockable Panel System:** Fully resizable, drag-and-drop panel interface with edge docking capabilities (similar to Premiere Pro).
+- **Responsive Workspace UI:** Floating grip handles instead of fixed header bars to maximize video real estate, plus dynamically wrapping transport controls for narrow screens.
+- **Native Turkish Support:** Full localization to ensure a seamless editing experience.
+- **Minimalist Interface:** Removed development debug panels and refined the landing page for a clean, distraction-free environment.
 ## Quick Start
 
 ```bash
