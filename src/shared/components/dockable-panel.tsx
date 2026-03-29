@@ -143,7 +143,7 @@ export const DockablePanel = memo(function DockablePanel({
 export const EdgeDropZone = memo(function EdgeDropZone({
   side,
 }: {
-  side: 'left' | 'right';
+  side: 'left' | 'right' | 'bottom';
 }) {
   const draggingPanel = usePanelLayoutStore((s) => s.draggingPanel);
   const dropTarget = usePanelLayoutStore((s) => s.dropTarget);
@@ -165,7 +165,11 @@ export const EdgeDropZone = memo(function EdgeDropZone({
 
   return (
     <div
-      className={`absolute ${side === 'left' ? 'left-0' : 'right-0'} top-0 bottom-0 w-5 z-40 transition-all duration-100 ${
+      className={`absolute ${
+        side === 'left' ? 'left-0 top-0 bottom-0 w-5' : 
+        side === 'right' ? 'right-0 top-0 bottom-0 w-5' : 
+        'bottom-0 left-0 right-0 h-5'
+      } z-40 transition-all duration-100 ${
         isActive ? 'bg-primary/25' : 'bg-transparent'
       }`}
       onMouseEnter={handleMouseEnter}
@@ -173,18 +177,24 @@ export const EdgeDropZone = memo(function EdgeDropZone({
     >
       {/* Bright edge indicator */}
       <div
-        className={`absolute ${side === 'left' ? 'left-0' : 'right-0'} top-0 bottom-0 w-1 transition-all duration-100 ${
+        className={`absolute ${
+          side === 'left' ? 'left-0 top-0 bottom-0 w-1' :
+          side === 'right' ? 'right-0 top-0 bottom-0 w-1' :
+          'bottom-0 left-0 right-0 h-1'
+        } transition-all duration-100 ${
           isActive ? 'bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-transparent'
         }`}
       />
       {isActive && (
         <div
-          className={`absolute top-1/2 -translate-y-1/2 ${
-            side === 'left' ? 'left-6' : 'right-6'
+          className={`absolute ${
+            side === 'left' ? 'top-1/2 -translate-y-1/2 left-6' : 
+            side === 'right' ? 'top-1/2 -translate-y-1/2 right-6' : 
+            'left-1/2 -translate-x-1/2 bottom-6'
           } pointer-events-none`}
         >
           <div className="bg-primary/90 text-primary-foreground px-2 py-1 rounded text-[10px] font-medium shadow-lg whitespace-nowrap backdrop-blur-sm">
-            Tam yükseklikte {side === 'left' ? 'sola' : 'sağa'} yerleştir
+            Tam genişlikte {side === 'left' ? 'sola' : side === 'right' ? 'sağa' : 'alta'} yerleştir
           </div>
         </div>
       )}

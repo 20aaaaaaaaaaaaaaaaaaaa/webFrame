@@ -61,7 +61,7 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
       setDropTarget: (target) => set({ dropTarget: target }),
 
       endDrag: () => {
-        const { draggingPanel, dropTarget, dockedPanel, dockedSide, mainOrder } = get();
+        const { draggingPanel, dropTarget, dockedPanel, mainOrder } = get();
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
 
@@ -70,7 +70,7 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
           return;
         }
 
-        // ── Edge docking ──
+        // ── Edge docking (Left / Right) ──
         if (dropTarget === 'edge-right' || dropTarget === 'edge-left') {
           const side = dropTarget === 'edge-right' ? 'right' : 'left';
 
@@ -89,6 +89,32 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
             dockedPanel: draggingPanel,
             dockedSide: side,
             mainOrder: restored,
+            draggingPanel: null,
+            dropTarget: null,
+          });
+          return;
+        }
+
+        // ── Edge docking (Bottom) ──
+        if (dropTarget === 'edge-bottom') {
+          // Dropping to bottom means placing this panel at the end of mainOrder.
+          // If this panel was the docked full-height panel, clear the dock state.
+          const isDocked = dockedPanel === draggingPanel;
+          const newDockedPanel = isDocked ? null : dockedPanel;
+
+          // Gather all panels in mainOrder (and the old docked if it's being restored)
+          // Wait, if we aren't restoring an old docked, we just filter out the dragging panel from mainOrder.
+          let availablePanels = [...mainOrder];
+          if (isDocked) {
+             // It was docked, so it wasn't in mainOrder anyway.
+          } else {
+             // It was in mainOrder, so remove it.
+             availablePanels = availablePanels.filter(p => p !== draggingPanel);
+          }
+
+          set({
+            dockedPanel: newDockedPanel,
+            mainOrder: [...availablePanels, draggingPanel],
             draggingPanel: null,
             dropTarget: null,
           });

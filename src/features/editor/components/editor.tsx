@@ -453,6 +453,7 @@ export const Editor = memo(function Editor({ projectId, project }: EditorProps) 
       {/* Edge drop zones — only visible during drag */}
       <EdgeDropZone side="left" />
       <EdgeDropZone side="right" />
+      <EdgeDropZone side="bottom" />
 
       <Suspense fallback={null}>
         {exportDialogOpen && (
