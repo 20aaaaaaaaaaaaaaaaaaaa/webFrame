@@ -7,10 +7,10 @@
 ✨ **webFrame Exclusive Features**
 We focused purely on professional workspace usability and Turkish localization:
 
-- **Premiere-Style Dockable Panels:** You can now drag, drop, and dock panels anywhere. Want a vertical video workspace? Dock the preview to the right side seamlessly!
+- **Professional Dockable Panels:** You can now drag, drop, and dock panels anywhere. Want a vertical video workspace? Dock the preview to the right side seamlessly! No rigid layouts holding you back.
 - **Responsive Workspace UI:** We removed fixed header bars to give you more screen space. Panels now have floating grip handles, and transport controls wrap dynamically on narrow screens so you never lose access to your play buttons.
-- **Native Turkish Support:** The entire interface has been translated to Turkish for local creators.
-- **Minimalist Focus:** We stripped away the development debugging panels and simplified the UI for a clean, distraction-free editing environment.
+- **Native Localization:** Currently fully translated to Turkish for local creators, with more languages rolling out very soon!
+- **Minimalist Focus:** We sent the giant yellow developer debug bug-button on a permanent vacation. We stripped away the clunky debugging panels and simplified the UI for a clean, distraction-free editing environment.
 
 ## Quick Start
 
