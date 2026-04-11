@@ -27,6 +27,7 @@ interface ToolbarProps {
     width: number;
     height: number;
     fps: number;
+    backgroundColor?: string;
   };
   isDirty?: boolean;
   onSave?: () => Promise<void>;

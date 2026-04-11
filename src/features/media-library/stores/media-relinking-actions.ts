@@ -4,8 +4,13 @@
   BrokenMediaInfo,
   OrphanedClipInfo,
 } from '../types';
+import type { TimelineItem } from '@/types/timeline';
+import type { MediaMetadata } from '@/types/storage';
 import { mediaLibraryService } from '../services/media-library-service';
-import { removeItems, updateItem } from '@/features/media-library/deps/timeline-actions';
+import {
+  removeProjectItems,
+  updateProjectItem,
+} from '@/features/media-library/deps/timeline-actions';
 import { useTimelineSettingsStore } from '@/features/media-library/deps/timeline-stores';
 import { blobUrlManager } from '@/infrastructure/browser/blob-url-manager';
 import { createLogger } from '@/shared/logging/logger';
@@ -18,6 +23,24 @@ type Set = (
     | ((state: MediaLibraryState & MediaLibraryActions) => Partial<MediaLibraryState>)
 ) => void;
 type Get = () => MediaLibraryState & MediaLibraryActions;
+
+function replaceMediaItem(set: Set, mediaId: string, updated: MediaMetadata): void {
+  set((state) => ({
+    mediaItems: state.mediaItems.map((item) => (item.id === mediaId ? updated : item)),
+  }));
+}
+
+function applySuccessfulRelink(
+  set: Set,
+  get: Get,
+  mediaId: string,
+  updated: MediaMetadata
+): void {
+  // Invalidate stale blob URL so preview re-fetches from the new handle.
+  blobUrlManager.invalidate(mediaId);
+  replaceMediaItem(set, mediaId, updated);
+  get().markMediaHealthy(mediaId);
+}
 
 export function createRelinkingActions(
   set: Set,
@@ -71,19 +94,7 @@ export function createRelinkingActions(
           mediaId,
           newHandle
         );
-
-        // Invalidate stale blob URL so preview re-fetches from the new handle
-        blobUrlManager.invalidate(mediaId);
-
-        // Update local state
-        set((state) => ({
-          mediaItems: state.mediaItems.map((item) =>
-            item.id === mediaId ? updated : item
-          ),
-        }));
-
-        // Clear broken status
-        get().markMediaHealthy(mediaId);
+        applySuccessfulRelink(set, get, mediaId, updated);
         get().showNotification({
           type: 'success',
           message: `"${updated.fileName}" relinked successfully`,
@@ -111,19 +122,7 @@ export function createRelinkingActions(
             mediaId,
             handle
           );
-
-          // Invalidate stale blob URL so preview re-fetches from the new handle
-          blobUrlManager.invalidate(mediaId);
-
-          // Update local state
-          set((state) => ({
-            mediaItems: state.mediaItems.map((item) =>
-              item.id === mediaId ? updated : item
-            ),
-          }));
-
-          // Clear broken status
-          get().markMediaHealthy(mediaId);
+          applySuccessfulRelink(set, get, mediaId, updated);
           success.push(mediaId);
         } catch (error) {
           logger.error(
@@ -201,7 +200,7 @@ export function createRelinkingActions(
         }
 
         // Update the timeline item
-        updateItem(itemId, updates);
+        updateProjectItem(itemId, updates as Partial<TimelineItem>);
 
         // Clear any cached blob URLs for the old media
         // The new media will be resolved on next render
@@ -237,7 +236,7 @@ export function createRelinkingActions(
 
     removeOrphanedClips: (itemIds: string[]) => {
       try {
-        removeItems(itemIds);
+        removeProjectItems(itemIds);
 
         // Remove from orphaned clips list
         set((state) => ({
@@ -256,4 +255,3 @@ export function createRelinkingActions(
     },
   };
 }
-

@@ -6,12 +6,13 @@ import { useProjectStore } from '@/features/editor/deps/projects';
 import { useTimelineStore } from '@/features/editor/deps/timeline-store';
 import { useGizmoStore } from '@/features/editor/deps/preview';
 import { HexColorPicker } from 'react-colorful';
+import { toast } from 'sonner';
 import {
   PropertySection,
   PropertyRow,
   LinkedDimensions,
 } from '../components';
-import { useTranslation } from 'react-i18next';
+import { commitProjectMetadataChange } from '@/features/editor/utils/project-metadata-history';
 
 /**
  * Isolated color picker using react-colorful.
@@ -98,7 +99,6 @@ const ColorPicker = memo(function ColorPicker({
  * Displays and allows editing of canvas dimensions and shows project duration.
  */
 export const CanvasPanel = memo(function CanvasPanel() {
-  const { t } = useTranslation();
   // Granular selectors
   const currentProject = useProjectStore((s) => s.currentProject);
   const updateProject = useProjectStore((s) => s.updateProject);
@@ -113,65 +113,89 @@ export const CanvasPanel = memo(function CanvasPanel() {
 
 
   // All handlers must be defined before any early returns (Rules of Hooks)
-  const projectId = currentProject?.id;
   const width = currentProject?.metadata.width ?? 1920;
   const height = currentProject?.metadata.height ?? 1080;
   const storedBackgroundColor = currentProject?.metadata.backgroundColor ?? '#000000';
 
+  const applyProjectMetadataChange = useCallback(async (
+    updates: Parameters<typeof commitProjectMetadataChange>[0]['updates'],
+    command: Parameters<typeof commitProjectMetadataChange>[0]['command']
+  ) => {
+    if (!currentProject) {
+      return;
+    }
+
+    try {
+      await commitProjectMetadataChange({
+        project: currentProject,
+        updates,
+        command,
+        updateProject,
+        markDirty,
+      });
+    } catch (error) {
+      toast.error('Failed to update canvas settings', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
+    }
+  }, [currentProject, markDirty, updateProject]);
+
 
   const handleWidthChange = useCallback(
     (newWidth: number) => {
-      if (projectId) {
-        updateProject(projectId, { width: Math.round(newWidth / 2) * 2 });
-        markDirty();
-      }
+      const normalizedWidth = Math.round(newWidth / 2) * 2;
+      void applyProjectMetadataChange(
+        { width: normalizedWidth },
+        { type: 'UPDATE_PROJECT_METADATA', payload: { fields: ['width'] } }
+      );
     },
-    [projectId, updateProject, markDirty]
+    [applyProjectMetadataChange]
   );
 
   const handleHeightChange = useCallback(
     (newHeight: number) => {
-      if (projectId) {
-        updateProject(projectId, { height: Math.round(newHeight / 2) * 2 });
-        markDirty();
-      }
+      const normalizedHeight = Math.round(newHeight / 2) * 2;
+      void applyProjectMetadataChange(
+        { height: normalizedHeight },
+        { type: 'UPDATE_PROJECT_METADATA', payload: { fields: ['height'] } }
+      );
     },
-    [projectId, updateProject, markDirty]
+    [applyProjectMetadataChange]
   );
 
   const handleSwapDimensions = useCallback(() => {
-    if (projectId) {
-      updateProject(projectId, { width: height, height: width });
-      markDirty();
-    }
-  }, [projectId, width, height, updateProject, markDirty]);
+    void applyProjectMetadataChange(
+      { width: height, height: width },
+      { type: 'UPDATE_PROJECT_METADATA', payload: { fields: ['width', 'height'], operation: 'swap' } }
+    );
+  }, [applyProjectMetadataChange, height, width]);
 
   const handleResetDimensions = useCallback(() => {
-    if (projectId) {
-      updateProject(projectId, { width: 1920, height: 1080 });
-      markDirty();
-    }
-  }, [projectId, updateProject, markDirty]);
+    void applyProjectMetadataChange(
+      { width: 1920, height: 1080 },
+      { type: 'UPDATE_PROJECT_METADATA', payload: { fields: ['width', 'height'], operation: 'reset' } }
+    );
+  }, [applyProjectMetadataChange]);
 
   // Commit background color to store on release
   const handleBackgroundColorChange = useCallback(
     (color: string) => {
-      if (projectId) {
-        updateProject(projectId, { backgroundColor: color });
-        markDirty();
-      }
+      void applyProjectMetadataChange(
+        { backgroundColor: color },
+        { type: 'UPDATE_PROJECT_METADATA', payload: { fields: ['backgroundColor'] } }
+      );
     },
-    [projectId, updateProject, markDirty]
+    [applyProjectMetadataChange]
   );
 
   // Reset background color to black
   const handleResetBackgroundColor = useCallback(() => {
     if (storedBackgroundColor === '#000000') return; // Already default
-    if (projectId) {
-      updateProject(projectId, { backgroundColor: '#000000' });
-      markDirty();
-    }
-  }, [projectId, storedBackgroundColor, updateProject, markDirty]);
+    void applyProjectMetadataChange(
+      { backgroundColor: '#000000' },
+      { type: 'UPDATE_PROJECT_METADATA', payload: { fields: ['backgroundColor'], operation: 'reset' } }
+    );
+  }, [applyProjectMetadataChange, storedBackgroundColor]);
 
   // Format duration as MM:SS.FF
   const formatDuration = (frames: number): string => {
@@ -185,7 +209,7 @@ export const CanvasPanel = memo(function CanvasPanel() {
   if (!currentProject) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-xs text-muted-foreground">{t('properties.noProjectLoaded', 'No project loaded')}</p>
+        <p className="text-xs text-muted-foreground">No project loaded</p>
       </div>
     );
   }
@@ -193,7 +217,7 @@ export const CanvasPanel = memo(function CanvasPanel() {
   return (
     <div className="space-y-4">
       {/* Canvas Section */}
-      <PropertySection title={t('properties.canvas', 'Canvas')} icon={LayoutDashboard} defaultOpen={true}>
+      <PropertySection title="Canvas" icon={LayoutDashboard} defaultOpen={true}>
         <LinkedDimensions
           width={width}
           height={height}
@@ -216,7 +240,7 @@ export const CanvasPanel = memo(function CanvasPanel() {
             onClick={handleSwapDimensions}
           >
             <ArrowLeftRight className="w-3 h-3 mr-1.5" />
-            {t('properties.swap', 'Swap')}
+            Swap
           </Button>
           <Button
             variant="outline"
@@ -225,12 +249,12 @@ export const CanvasPanel = memo(function CanvasPanel() {
             onClick={handleResetDimensions}
           >
             <RotateCcw className="w-3 h-3 mr-1.5" />
-            {t('properties.reset', 'Reset')}
+            Reset
           </Button>
         </div>
 
         {/* Background Color */}
-        <PropertyRow label={t('properties.background', 'Background')}>
+        <PropertyRow label="Background">
           <div className="flex items-center gap-1 w-full">
             <ColorPicker
               initialColor={storedBackgroundColor}
@@ -241,7 +265,7 @@ export const CanvasPanel = memo(function CanvasPanel() {
               size="icon"
               className="h-7 w-7 flex-shrink-0"
               onClick={handleResetBackgroundColor}
-              title={t('properties.resetToBlack', 'Reset to black')}
+              title="Reset to black"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </Button>
@@ -252,22 +276,22 @@ export const CanvasPanel = memo(function CanvasPanel() {
       <Separator />
 
       {/* Duration Section */}
-      <PropertySection title={t('timeline.duration', 'Duration')} icon={Clock} defaultOpen={true}>
-        <PropertyRow label={t('timeline.duration', 'Duration')}>
+      <PropertySection title="Duration" icon={Clock} defaultOpen={true}>
+        <PropertyRow label="Duration">
           <span className="text-xs text-muted-foreground tabular-nums">
             {formatDuration(timelineDuration)}
           </span>
         </PropertyRow>
 
-        <PropertyRow label={t('properties.frameRate', 'Frame Rate')}>
+        <PropertyRow label="Frame Rate">
           <span className="text-xs text-muted-foreground tabular-nums">
             {currentProject.metadata.fps} fps
           </span>
         </PropertyRow>
 
-        <PropertyRow label={t('properties.totalFrames', 'Total Frames')}>
+        <PropertyRow label="Total Frames">
           <span className="text-xs text-muted-foreground tabular-nums">
-            {timelineDuration} {t('properties.frames', 'fr')}
+            {timelineDuration} fr
           </span>
         </PropertyRow>
       </PropertySection>

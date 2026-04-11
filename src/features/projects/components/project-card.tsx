@@ -24,7 +24,6 @@ import type { Project } from '@/types/project';
 import { formatRelativeTime } from '../utils/project-helpers';
 import { useDeleteProject, useDuplicateProject } from '../hooks/use-project-actions';
 import { useProjectThumbnail } from '../hooks/use-project-thumbnail';
-import { useTranslation } from 'react-i18next';
 
 interface ProjectCardProps {
   project: Project;
@@ -39,7 +38,6 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
   const deleteProject = useDeleteProject();
   const duplicateProject = useDuplicateProject();
   const thumbnailUrl = useProjectThumbnail(project);
-  const { t } = useTranslation();
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -56,10 +54,10 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
     setClearLocalFiles(false);
 
     if (!result.success) {
-      toast.error(t('projects.deleteFailed', 'Failed to delete project'), { description: result.error });
+      toast.error('Failed to delete project', { description: result.error });
     } else if (wantedLocalDelete && !result.localFilesDeleted) {
-      toast.warning(t('projects.deleteLocalFailedTitle', 'Project deleted but local files were not removed'), {
-        description: t('projects.deleteLocalFailedDesc', 'Filesystem cleanup failed — you may need to delete the folder manually.'),
+      toast.warning('Project deleted but local files were not removed', {
+        description: 'Filesystem cleanup failed — you may need to delete the folder manually.',
       });
     }
   };
@@ -73,7 +71,7 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
     setIsDuplicating(false);
 
     if (!result.success) {
-      toast.error(t('projects.duplicateFailed', 'Failed to duplicate project'), { description: result.error });
+      toast.error('Failed to duplicate project', { description: result.error });
     }
   };
 
@@ -118,7 +116,7 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-secondary/40 to-secondary/20">
-            <PlayCircle className="w-8 h-8 text-muted-foreground/40" />
+            <PlayCircle className="w-12 h-12 text-muted-foreground/40" />
           </div>
         )}
 
@@ -126,7 +124,7 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
           <div className="flex items-center gap-2 text-white">
             <PlayCircle className="w-6 h-6" />
-            <span className="font-medium">{t('projects.openInEditor', 'Open in Editor')}</span>
+            <span className="font-medium">Open in Editor</span>
           </div>
         </div>
 
@@ -137,10 +135,10 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
       </Link>
 
       {/* Content */}
-      <div className="p-3">
-        <div className="flex items-start justify-between gap-1.5 mb-1">
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">
+            <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
               {project.name}
             </h3>
             {project.description && (
@@ -170,12 +168,12 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
                   className="flex items-center gap-2 cursor-pointer"
                 >
                   <PlayCircle className="w-4 h-4" />
-                  {t('projects.openInEditor', 'Open in Editor')}
+                  Open in Editor
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleEdit} className="flex items-center gap-2">
                 <Edit2 className="w-4 h-4" />
-                {t('projects.editSettings', 'Edit Settings')}
+                Edit Settings
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleDuplicate}
@@ -183,7 +181,7 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
                 className="flex items-center gap-2"
               >
                 <Copy className="w-4 h-4" />
-                {isDuplicating ? t('projects.duplicating', 'Duplicating...') : t('projects.duplicate', 'Duplicate')}
+                {isDuplicating ? 'Duplicating...' : 'Duplicate'}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -192,7 +190,7 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
                 className="flex items-center gap-2 text-destructive focus:text-destructive"
               >
                 <Trash2 className="w-4 h-4" />
-                {isDeleting ? t('projects.deleting', 'Deleting...') : t('common.delete', 'Delete')}
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -207,10 +205,11 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-destructive" />
-                {t('projects.deleteProjectConfirmTitle', 'Delete Project')}
+                Delete Project
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {t('projects.deleteProjectConfirmDesc', 'Are you sure you want to delete {{name}}? This action cannot be undone and will permanently remove the project and all its contents.', { name: project.name })}
+                Are you sure you want to delete <strong>{project.name}</strong>? This action cannot be
+                undone and will permanently remove the project and all its contents.
               </AlertDialogDescription>
             </AlertDialogHeader>
             {project.rootFolderHandle && (
@@ -224,28 +223,28 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                     <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
-                    {t('projects.deleteLocalFiles', 'Also delete local files on disk')}
+                    Also delete local files on disk
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {t('projects.deleteLocalFilesHint', 'Remove files from the linked folder{{folderName}}. This cannot be undone.', { folderName: project.rootFolderName ? ` "${project.rootFolderName}"` : '' })}
+                    Remove files from the linked folder{project.rootFolderName ? ` "${project.rootFolderName}"` : ''}. This cannot be undone.
                   </p>
                 </div>
               </label>
             )}
             <AlertDialogFooter>
-              <AlertDialogCancel>{t('timeline.cancel', 'Cancel')}</AlertDialogCancel>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleConfirmDelete}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {t('common.delete', 'Delete')}
+                Delete Project
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
 
         {/* Metadata */}
-        <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <span className="font-mono">{aspectRatioLabel}</span>
           </div>

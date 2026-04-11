@@ -1,9 +1,13 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { TimelineItem } from '@/types/timeline';
 import type { ResolvedTransform } from '@/types/transform';
-import type { ItemKeyframes } from '@/types/keyframe';
-import { useTimelineStore, type TimelineState } from '@/features/preview/deps/timeline-store';
+import {
+  useKeyframesStore,
+  useTimelineSettingsStore,
+} from '@/features/preview/deps/timeline-store';
 import { usePlaybackStore } from '@/shared/state/playback';
+import { usePreviewBridgeStore } from '@/shared/state/preview-bridge';
 import { getResolvedPlaybackFrame } from '@/shared/state/playback/frame-resolution';
 import { useGizmoStore } from '@/features/preview/stores/gizmo-store';
 import {
@@ -33,11 +37,19 @@ export function useVisualTransforms(
   items: TimelineItem[],
   projectSize: ProjectSize
 ): Map<string, ResolvedTransform> {
-  const allKeyframes = useTimelineStore((s: TimelineState) => s.keyframes);
-  const fps = useTimelineStore((s: TimelineState) => s.fps);
+  const fps = useTimelineSettingsStore((s) => s.fps);
+  const itemIds = useMemo(() => items.map((item) => item.id), [items]);
+  const itemKeyframes = useKeyframesStore(
+    useShallow(
+      useCallback(
+        (s) => itemIds.map((itemId) => s.keyframesByItemId[itemId] ?? null),
+        [itemIds]
+      )
+    )
+  );
   const currentFrame = usePlaybackStore((s) => s.currentFrame);
   const previewFrame = usePlaybackStore((s) => s.previewFrame);
-  const displayedFrame = usePlaybackStore((s) => s.displayedFrame);
+  const displayedFrame = usePreviewBridgeStore((s) => s.displayedFrame);
   const isPlaying = usePlaybackStore((s) => s.isPlaying);
   const currentFrameEpoch = usePlaybackStore((s) => s.currentFrameEpoch);
   const previewFrameEpoch = usePlaybackStore((s) => s.previewFrameEpoch);
@@ -57,12 +69,12 @@ export function useVisualTransforms(
     const transforms = new Map<string, ResolvedTransform>();
     const canvas = { width: projectSize.width, height: projectSize.height, fps };
 
-    for (const item of items) {
-      const itemKeyframes = allKeyframes.find((k: ItemKeyframes) => k.itemId === item.id);
+    for (const [index, item] of items.entries()) {
+      const itemKeyframe = itemKeyframes[index] ?? undefined;
       const animatedTransform = resolveItemTransformAtFrame(item, {
         canvas,
         frame: animationFrame,
-        keyframes: itemKeyframes,
+        keyframes: itemKeyframe,
       });
 
       if (activeGizmo?.itemId === item.id && gizmoPreviewTransform) {
@@ -84,5 +96,15 @@ export function useVisualTransforms(
     }
 
     return transforms;
-  }, [items, projectSize, allKeyframes, animationFrame, activeGizmo?.itemId, gizmoPreviewTransform, preview, fps]);
+  }, [
+    items,
+    projectSize.height,
+    projectSize.width,
+    itemKeyframes,
+    animationFrame,
+    activeGizmo?.itemId,
+    gizmoPreviewTransform,
+    preview,
+    fps,
+  ]);
 }

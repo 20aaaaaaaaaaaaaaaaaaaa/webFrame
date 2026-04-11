@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+﻿import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { createLogger } from '@/shared/logging/logger';
@@ -56,7 +56,7 @@ function NewProject() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="panel-header border-b border-border">
-        <div className="max-w-[1920px] mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-[1920px] mx-auto px-6 py-5 flex items-center justify-between">
           <Link to="/">
             <FreeCutLogo variant="full" size="md" className="hover:opacity-80 transition-opacity" />
           </Link>
@@ -67,7 +67,7 @@ function NewProject() {
             asChild
           >
             <a
-              href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame"
+              href="https://github.com/walterlow/freecut"
               target="_blank"
               rel="noopener noreferrer"
               data-tooltip="View on GitHub"

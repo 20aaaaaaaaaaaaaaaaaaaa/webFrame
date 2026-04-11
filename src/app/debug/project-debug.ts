@@ -98,6 +98,10 @@ interface ProjectDebugAPI {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   jitter: () => any;
 
+  // Timeline integrity
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  overlaps: () => Promise<any>;
+
   // Render pipeline diagnostics — delegates to existing ad-hoc window globals
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   previewPerf: () => any;
@@ -378,15 +382,19 @@ function createDebugAPI(): ProjectDebugAPI {
     },
 
     getPlaybackState: async () => {
-      const { usePlaybackStore } = await import('@/shared/state/playback');
+      const [{ usePlaybackStore }, { usePreviewBridgeStore }] = await Promise.all([
+        import('@/shared/state/playback'),
+        import('@/shared/state/preview-bridge'),
+      ]);
       const s = usePlaybackStore.getState();
+      const bridge = usePreviewBridgeStore.getState();
       return {
         currentFrame: s.currentFrame,
         isPlaying: s.isPlaying,
         playbackRate: s.playbackRate,
         loop: s.loop,
         previewFrame: s.previewFrame,
-        displayedFrame: s.displayedFrame,
+        displayedFrame: bridge.displayedFrame,
         zoom: s.zoom,
         useProxy: s.useProxy,
       };
@@ -442,6 +450,32 @@ function createDebugAPI(): ProjectDebugAPI {
 
     jitter: () => {
       return (window as unknown as Record<string, unknown>).__FRAME_JITTER__ ?? null;
+    },
+
+    overlaps: async () => {
+      const [
+        { useItemsStore },
+        { useTransitionsStore },
+        { detectOverlappingItems },
+      ] = await Promise.all([
+        import('@/features/timeline/stores/items-store'),
+        import('@/features/timeline/stores/transitions-store'),
+        import('@/features/timeline/utils/collision-utils'),
+      ]);
+      const items = useItemsStore.getState().items;
+      const transitions = useTransitionsStore.getState().transitions;
+      const overlaps = detectOverlappingItems(items, transitions);
+      if (overlaps.length === 0) return { clean: true, count: 0 };
+      return {
+        clean: false,
+        count: overlaps.length,
+        overlaps: overlaps.map((o) => ({
+          itemA: o.itemA.substring(0, 8),
+          itemB: o.itemB.substring(0, 8),
+          trackId: o.trackId.substring(0, 8),
+          overlapFrames: o.overlapFrames,
+        })),
+      };
     },
 
     // Render pipeline diagnostics — thin delegates to existing window globals
@@ -516,4 +550,3 @@ declare global {
     __DEBUG__?: ProjectDebugAPI;
   }
 }
-

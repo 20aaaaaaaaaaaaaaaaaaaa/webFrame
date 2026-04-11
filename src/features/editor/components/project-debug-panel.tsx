@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Project Debug Panel
  *
- * Floating debug panel for project data operations.
- * Only visible in development mode.
+ * Project data operations UI rendered inside the toolbar popover.
+ * Visibility is controlled by the parent DebugPopover component.
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -32,7 +32,6 @@ import {
   CheckCircle,
   XCircle,
   ChevronDown,
-  X,
   FlaskConical,
   Play,
   Eye,
@@ -45,7 +44,6 @@ import {
   type FixtureType,
 } from '@/features/editor/deps/project-bundle';
 import { createProject, getDBStats } from '@/infrastructure/storage/indexeddb';
-import { useTranslation } from 'react-i18next';
 
 const logger = createLogger('DebugPanel');
 
@@ -61,8 +59,6 @@ interface ProjectDebugPanelProps {
 }
 
 export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
-  const { t } = useTranslation();
-  const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
   const [status, setStatus] = useState<{
     type: 'idle' | 'loading' | 'success' | 'error';
@@ -85,11 +81,6 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
       });
     }
   }, []);
-
-  // Only show in dev mode, can be disabled with VITE_SHOW_DEBUG_PANEL=false
-  if (!import.meta.env.DEV || import.meta.env.VITE_SHOW_DEBUG_PANEL === 'false') {
-    return null;
-  }
 
   const showStatus = (type: 'success' | 'error', message: string) => {
     setStatus({ type, message });
@@ -194,52 +185,52 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
 
   const exportActions: DebugAction[] = [
     {
-      label: t('debug.downloadJson', 'Download JSON'),
+      label: 'Download JSON',
       icon: <Download className="h-3.5 w-3.5" />,
-      action: () => runAction(handleExportJson, t('debug.downloadedJsonMsg', 'Downloaded .freecut.json')),
-      description: t('debug.downloadJsonDesc', 'Download project as JSON file'),
+      action: () => runAction(handleExportJson, 'Downloaded .freecut.json'),
+      description: 'Download project as JSON file',
     },
     {
-      label: t('debug.copyToClipboard', 'Copy to Clipboard'),
+      label: 'Copy to Clipboard',
       icon: <Clipboard className="h-3.5 w-3.5" />,
-      action: () => runAction(handleCopyToClipboard, t('debug.copiedMsg', 'Copied to clipboard')),
-      description: t('debug.copyToClipboardDesc', 'Copy project JSON to clipboard'),
+      action: () => runAction(handleCopyToClipboard, 'Copied to clipboard'),
+      description: 'Copy project JSON to clipboard',
     },
   ];
 
   const importActions: DebugAction[] = [
     {
-      label: t('debug.importFromFile', 'Import from File'),
+      label: 'Import from File',
       icon: <Upload className="h-3.5 w-3.5" />,
-      action: () => runAction(handleImportFromFile, t('debug.importedMsg', 'Imported successfully')),
-      description: t('debug.importFromFileDesc', 'Import project from JSON file'),
+      action: () => runAction(handleImportFromFile, 'Imported successfully'),
+      description: 'Import project from JSON file',
     },
     {
-      label: t('debug.importFromClipboard', 'Import from Clipboard'),
+      label: 'Import from Clipboard',
       icon: <ClipboardPaste className="h-3.5 w-3.5" />,
-      action: () => runAction(handleImportFromClipboard, t('debug.importedMsg', 'Imported successfully')),
-      description: t('debug.importFromClipboardDesc', 'Import project from clipboard'),
+      action: () => runAction(handleImportFromClipboard, 'Imported successfully'),
+      description: 'Import project from clipboard',
     },
   ];
 
   const inspectActions: DebugAction[] = [
     {
-      label: t('debug.logSnapshot', 'Log Snapshot'),
+      label: 'Log Snapshot',
       icon: <FileJson className="h-3.5 w-3.5" />,
-      action: () => runAction(handleLogSnapshot, t('debug.loggedMsg', 'Logged to console')),
-      description: t('debug.logSnapshotDesc', 'Log project snapshot to console'),
+      action: () => runAction(handleLogSnapshot, 'Logged to console'),
+      description: 'Log project snapshot to console',
     },
     {
-      label: t('debug.logDbStats', 'Log DB Stats'),
+      label: 'Log DB Stats',
       icon: <Database className="h-3.5 w-3.5" />,
-      action: () => runAction(handleLogDBStats, t('debug.loggedMsg', 'Logged to console')),
-      description: t('debug.logDbStatsDesc', 'Log IndexedDB statistics'),
+      action: () => runAction(handleLogDBStats, 'Logged to console'),
+      description: 'Log IndexedDB statistics',
     },
     {
-      label: t('debug.validateSchema', 'Validate Schema'),
+      label: 'Validate Schema',
       icon: <CheckCircle className="h-3.5 w-3.5" />,
-      action: () => runAction(handleValidateProject, t('debug.validationCompleteMsg', 'Validation complete')),
-      description: t('debug.validateSchemaDesc', 'Validate project against schema'),
+      action: () => runAction(handleValidateProject, 'Validation complete'),
+      description: 'Validate project against schema',
     },
   ];
 
@@ -258,42 +249,11 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
   );
 
   return (
-    <>
-      {/* Floating Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          'fixed bottom-4 right-4 z-50 p-2.5 rounded-full shadow-lg transition-all',
-          'bg-amber-500 hover:bg-amber-600 text-white',
-          'focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2',
-          isOpen && 'rotate-180'
-        )}
-        title={t('debug.togglePanel', 'Toggle Debug Panel')}
-      >
-        <Bug className="h-5 w-5" />
-      </button>
-
-      {/* Debug Panel */}
-      {isOpen && (
-        <div
-          className={cn(
-            'fixed bottom-16 right-4 z-50 w-64',
-            'bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl',
-            'text-zinc-100 text-sm'
-          )}
-        >
+    <div className="text-sm">
           {/* Header */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-700">
-            <div className="flex items-center gap-2">
-              <Bug className="h-4 w-4 text-amber-500" />
-              <span className="font-medium">{t('debug.panelTitle', 'Debug Panel')}</span>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1 hover:bg-zinc-800 rounded"
-            >
-              <X className="h-4 w-4" />
-            </button>
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700">
+            <Bug className="h-4 w-4 text-amber-500" />
+            <span className="font-medium">Debug Panel</span>
           </div>
 
           {/* Status Bar */}
@@ -311,7 +271,7 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
               )}
               {status.type === 'success' && <CheckCircle className="h-3 w-3" />}
               {status.type === 'error' && <XCircle className="h-3 w-3" />}
-              <span className="truncate">{status.message || t('debug.processing', 'Processing...')}</span>
+              <span className="truncate">{status.message || 'Processing...'}</span>
             </div>
           )}
 
@@ -319,7 +279,7 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
           <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
             <CollapsibleTrigger asChild>
               <button className="w-full px-3 py-2 flex items-center justify-between hover:bg-zinc-800/50 text-xs text-zinc-400">
-                <span>{t('debug.projectPrefix', 'Project:')} {projectId.slice(0, 8)}...</span>
+                <span>Project: {projectId.slice(0, 8)}...</span>
                 <ChevronDown
                   className={cn(
                     'h-3.5 w-3.5 transition-transform',
@@ -334,7 +294,7 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
                 {/* Overlays Section */}
                 <div>
                   <div className="px-1 py-1 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">
-                    {t('debug.overlays', 'Overlays')}
+                    Overlays
                   </div>
                   <div className="space-y-0.5">
                     <Button
@@ -345,12 +305,12 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
                         showVideoDebugOverlay && "bg-amber-500/20 text-amber-300"
                       )}
                       onClick={toggleVideoDebugOverlay}
-                      title={t('debug.videoDebugOverlayDesc', 'Show debug info on video clips')}
+                      title="Show debug info on video clips"
                     >
                       <Eye className="h-3.5 w-3.5" />
-                      {t('debug.videoDebugOverlay', 'Video Debug Overlay')}
+                      Video Debug Overlay
                       {showVideoDebugOverlay && (
-                        <span className="ml-auto text-[10px] bg-amber-500/30 px-1.5 py-0.5 rounded">{t('debug.on', 'ON')}</span>
+                        <span className="ml-auto text-[10px] bg-amber-500/30 px-1.5 py-0.5 rounded">ON</span>
                       )}
                     </Button>
                   </div>
@@ -396,7 +356,7 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
                 <div>
                   <div className="px-1 py-1 text-[10px] uppercase tracking-wider text-zinc-500 font-medium flex items-center gap-1">
                     <FlaskConical className="h-3 w-3" />
-                    {t('debug.testFixtures', 'Test Fixtures')}
+                    Test Fixtures
                   </div>
                   <div className="space-y-2 px-1">
                     <Select
@@ -404,7 +364,7 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
                       onValueChange={(value) => setSelectedFixture(value as FixtureType)}
                     >
                       <SelectTrigger className="h-7 text-xs bg-zinc-800 border-zinc-700">
-                        <SelectValue placeholder={t('debug.selectFixture', 'Select fixture...')} />
+                        <SelectValue placeholder="Select fixture..." />
                       </SelectTrigger>
                       <SelectContent className="bg-zinc-800 border-zinc-700">
                         {availableFixtures.map((fixture) => (
@@ -428,20 +388,20 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
                         variant="ghost"
                         size="sm"
                         className="flex-1 h-7 text-xs gap-1"
-                        onClick={() => runAction(handleGenerateFixture, t('debug.fixtureCreated', 'Fixture created'))}
+                        onClick={() => runAction(handleGenerateFixture, 'Fixture created')}
                         disabled={status.type === 'loading'}
-                        title={t('debug.createFixtureDesc', 'Create fixture project and open in editor')}
+                        title="Create fixture project and open in editor"
                       >
                         <Play className="h-3 w-3" />
-                        {t('debug.create', 'Create')}
+                        Create
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="flex-1 h-7 text-xs gap-1"
-                        onClick={() => runAction(handleDownloadFixture, t('debug.downloadedMsg', 'Downloaded'))}
+                        onClick={() => runAction(handleDownloadFixture, 'Downloaded')}
                         disabled={status.type === 'loading'}
-                        title={t('debug.downloadFixtureDesc', 'Download fixture as JSON')}
+                        title="Download fixture as JSON"
                       >
                         <Download className="h-3 w-3" />
                         JSON
@@ -450,9 +410,9 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        onClick={() => runAction(handleLogFixture, t('debug.loggedMsg', 'Logged'))}
+                        onClick={() => runAction(handleLogFixture, 'Logged')}
                         disabled={status.type === 'loading'}
-                        title={t('debug.logFixtureDesc', 'Log fixture to console')}
+                        title="Log fixture to console"
                       >
                         <FileJson className="h-3 w-3" />
                       </Button>
@@ -463,15 +423,12 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
                 {/* Console Hint */}
                 <div className="px-1 pt-2 border-t border-zinc-800">
                   <p className="text-[10px] text-zinc-500">
-                    {t('debug.consoleHint', 'Also available via')} <code className="bg-zinc-800 px-1 rounded">window.__DEBUG__</code>
+                    Also available via <code className="bg-zinc-800 px-1 rounded">window.__DEBUG__</code>
                   </p>
                 </div>
               </div>
             </CollapsibleContent>
           </Collapsible>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
-

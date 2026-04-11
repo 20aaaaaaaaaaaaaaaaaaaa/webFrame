@@ -1,6 +1,6 @@
-import { cn } from '@/shared/ui/cn';
+﻿import { cn } from '@/shared/ui/cn';
 
-interface WebFrameLogoProps {
+interface FreeCutLogoProps {
   variant?: 'full' | 'icon';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
@@ -24,46 +24,40 @@ const sizeConfig = {
   },
 };
 
-function FrameIcon({ className }: { className?: string }) {
+function ScissorIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      viewBox="0 0 512 512"
       className={className}
     >
-      <rect x="2" y="2" width="20" height="20" rx="2" />
-      <line x1="2" y1="8" x2="22" y2="8" />
-      <line x1="8" y1="2" x2="8" y2="22" />
+      <g fill="currentColor">
+        <path d="M424.994 126.551c30.029-30.029 30.018-78.738 0-108.766l-1.468-1.457L269.463 170.391l55.852 55.851L424.994 126.551z" />
+        <path d="M480.503 312.156c-20.898-20.932-48.609-31.531-76.01-31.498-14.518-.011-29.101 3.036-42.747 8.954L88.464 16.317l-1.469 1.469c-30.018 30.028-30.028 78.736 0 108.766L200.155 239.7l-49.912 49.911c-13.645-5.906-28.218-8.965-42.735-8.942-27.402-.044-55.123 10.554-76.021 31.487C10.554 333.054-.044 360.775 0 388.177c-.044 27.39 10.554 55.112 31.476 76.021 20.92 20.931 48.641 31.519 76.032 31.485 27.412.034 55.112-10.564 76.01-31.475l.021-.01c20.911-20.91 31.509-48.62 31.475-76.021.023-14.506-3.035-29.08-8.931-42.703l49.911-49.922 49.912 49.901c-5.896 13.634-8.954 28.207-8.932 42.725-.033 27.401 10.566 55.112 31.498 76.01 20.898 20.921 48.598 31.53 76.01 31.496 27.401.034 55.111-10.564 76.021-31.496 20.932-20.898 31.531-48.62 31.497-76.01C512.034 360.765 501.436 333.054 480.503 312.156zM135.582 416.229c-7.839 7.805-17.808 11.581-28.075 11.625-10.278-.044-20.226-3.82-28.064-11.625-7.805-7.828-11.581-17.785-11.614-28.052.033-10.278 3.809-20.226 11.614-28.064 7.828-7.805 17.786-11.581 28.064-11.614 10.277.044 20.224 3.809 28.064 11.614 7.805 7.828 11.569 17.786 11.613 28.064-.044 10.267-3.808 20.224-11.624 28.063L135.582 416.229zM256.006 260.156c-9.417 0-17.046-7.628-17.046-17.045 0-9.417 7.629-17.046 17.046-17.046 9.417 0 17.046 7.628 17.046 17.046C273.051 252.528 265.423 260.156 256.006 260.156zM432.546 416.217c-7.838 7.816-17.796 11.592-28.063 11.626-10.256-.034-20.214-3.81-28.053-11.626-7.805-7.828-11.581-17.796-11.625-28.041.044-10.278 3.808-20.226 11.625-28.064 7.839-7.816 17.786-11.581 28.064-11.625 10.256.034 20.214 3.808 28.052 11.625 7.805 7.839 11.581 17.797 11.625 28.064C444.126 398.444 440.362 408.39 432.546 416.217z" />
+      </g>
     </svg>
   );
 }
 
-/** @deprecated Use WebFrameLogo instead */
-export const FreeCutLogo = WebFrameLogo;
-
-export function WebFrameLogo({ variant = 'full', size = 'md', className }: WebFrameLogoProps) {
+export function FreeCutLogo({ variant = 'full', size = 'md', className }: FreeCutLogoProps) {
   const config = sizeConfig[size];
 
   if (variant === 'icon') {
-    return <FrameIcon className={cn(config.icon, 'text-primary', className)} />;
+    return <ScissorIcon className={cn(config.icon, 'text-primary', className)} />;
   }
 
   return (
     <div className={cn('flex items-center', config.gap, className)}>
-      <FrameIcon className={cn(config.icon, 'text-primary')} />
+      <ScissorIcon className={cn(config.icon, 'text-primary')} />
       <span
         className={cn(
           config.text,
           'font-semibold tracking-tight text-foreground'
         )}
       >
-        webFrame
+        FreeCut
       </span>
     </div>
   );
 }
+

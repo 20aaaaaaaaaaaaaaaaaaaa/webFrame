@@ -1,6 +1,5 @@
 import { Plus } from 'lucide-react';
 import { PROJECT_TEMPLATES, getAspectRatio, type ProjectTemplate } from '../utils/validation';
-import { useTranslation } from 'react-i18next';
 
 interface ProjectTemplatePickerProps {
   onSelectTemplate: (template: ProjectTemplate) => void;
@@ -15,9 +14,8 @@ export function ProjectTemplatePicker({
   onSelectCustom,
   isCustomSelected,
 }: ProjectTemplatePickerProps) {
-  const { t } = useTranslation();
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
        {PROJECT_TEMPLATES.map((template) => {
          const isSelected = selectedTemplateId === template.id;
          const aspectRatio = getAspectRatio(template.width, template.height);
@@ -29,14 +27,14 @@ export function ProjectTemplatePicker({
              type="button"
              aria-pressed={isSelected}
              onClick={() => onSelectTemplate(template)}
-             className={`group relative flex flex-col gap-1.5 p-2.5 panel-bg border rounded-lg transition-all hover:border-primary/50 hover:shadow-md hover:shadow-primary/5 ${
+             className={`group relative flex flex-col gap-3 p-4 panel-bg border rounded-lg transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 ${
                isSelected
                  ? 'border-primary ring-2 ring-primary/30'
                  : 'border-border'
              }`}
            >
              {/* Silhouette Container */}
-             <div className="relative h-14 bg-secondary/30 rounded overflow-hidden flex items-center justify-center" style={{ containerType: 'size' }}>
+             <div className="relative h-24 bg-secondary/30 rounded overflow-hidden flex items-center justify-center" style={{ containerType: 'size' }}>
                {/* Aspect Ratio Silhouette */}
                <div
                  className={`bg-primary/20 border-2 border-dashed rounded-sm ${
@@ -52,15 +50,15 @@ export function ProjectTemplatePicker({
 
              {/* Template Info */}
              <div className="flex-1 text-left">
-               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide leading-tight">
+               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                  {template.platform}
                </p>
-               <h3 className="font-medium text-xs text-foreground group-hover:text-primary transition-colors mt-0.5 leading-tight">
+               <h3 className="font-medium text-sm text-foreground group-hover:text-primary transition-colors mt-1">
                  {template.name}
                </h3>
-               <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
+               <p className="text-xs text-muted-foreground mt-2">
                  {resolution}
-                 <span className="mx-0.5">•</span>
+                 <span className="mx-1">•</span>
                  {aspectRatio}
                </p>
              </div>
@@ -72,11 +70,11 @@ export function ProjectTemplatePicker({
             type="button"
             aria-pressed={isCustomSelected}
             onClick={onSelectCustom}
-            className={`group relative flex flex-col gap-1.5 p-2.5 panel-bg border rounded-lg transition-all hover:border-primary/50 hover:shadow-md hover:shadow-primary/5 ${
+            className={`group relative flex flex-col gap-3 p-4 panel-bg border rounded-lg transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 ${
               isCustomSelected ? 'border-primary ring-2 ring-primary/30' : 'border-border'
             }`}
           >
-           <div className="relative h-14 bg-secondary/30 rounded overflow-hidden flex items-center justify-center">
+           <div className="relative h-24 bg-secondary/30 rounded overflow-hidden flex items-center justify-center">
              <div
                className={`border-2 border-dashed rounded-sm transition-colors ${
                  isCustomSelected ? 'border-primary/70 bg-primary/10' : 'border-muted-foreground/30 bg-muted/10'
@@ -89,15 +87,15 @@ export function ProjectTemplatePicker({
                }`}
              />
            </div>
-            <div className="flex-1 text-left">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide leading-tight">{t('projects.custom', 'Custom')}</p>
-              <h3 className={`font-medium text-xs transition-colors mt-0.5 leading-tight ${
-                isCustomSelected ? 'text-primary' : 'text-foreground group-hover:text-primary'
-              }`}>
-                {t('projects.customSize', 'Custom Size')}
-              </h3>
-              <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{t('projects.enterDimensions', 'Enter dimensions')}</p>
-            </div>
+           <div className="flex-1 text-left">
+             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Custom</p>
+             <h3 className={`font-medium text-sm transition-colors mt-1 ${
+               isCustomSelected ? 'text-primary' : 'text-foreground group-hover:text-primary'
+             }`}>
+               Custom Size
+             </h3>
+             <p className="text-xs text-muted-foreground mt-2">Enter dimensions</p>
+           </div>
          </button>
        )}
     </div>

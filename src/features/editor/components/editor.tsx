@@ -303,7 +303,6 @@ export const Editor = memo(function Editor({ projectId, project }: EditorProps) 
             return (
               <Timeline
                 duration={timelineDuration}
-                onGraphPanelOpenChange={handleGraphPanelOpenChange}
               />
             );
         }

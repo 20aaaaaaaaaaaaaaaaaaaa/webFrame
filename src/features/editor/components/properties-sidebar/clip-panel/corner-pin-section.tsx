@@ -9,7 +9,6 @@ import {
   PropertyRow,
   NumberInput,
 } from '../components';
-import { useTranslation } from 'react-i18next';
 
 interface CornerPinSectionProps {
   items: TimelineItem[];
@@ -25,10 +24,10 @@ const DEFAULT_PIN = {
 };
 
 const CORNER_LABELS: Record<CornerKey, string> = {
-  topLeft: 'properties.tl',
-  topRight: 'properties.tr',
-  bottomRight: 'properties.br',
-  bottomLeft: 'properties.bl',
+  topLeft: 'TL',
+  topRight: 'TR',
+  bottomRight: 'BR',
+  bottomLeft: 'BL',
 };
 
 /**
@@ -45,7 +44,6 @@ export const CornerPinSection = memo(function CornerPinSection({
     startEditing,
     stopEditing,
   } = useCornerPinStore();
-  const { t } = useTranslation();
 
   const item = items.length === 1 ? items[0]! : null;
   const cornerPin = item?.cornerPin ?? DEFAULT_PIN;
@@ -92,7 +90,7 @@ export const CornerPinSection = memo(function CornerPinSection({
   if (!item || items.length > 1) return null;
 
   return (
-    <PropertySection title={t('properties.cornerPin', 'Corner Pin')} icon={Maximize2} defaultOpen={false}>
+    <PropertySection title="Corner Pin" icon={Maximize2} defaultOpen={false}>
       {/* Edit + Reset toolbar */}
       <div className="flex items-center gap-1 px-1 mb-2">
         <Button
@@ -100,10 +98,10 @@ export const CornerPinSection = memo(function CornerPinSection({
           size="sm"
           className="h-7 text-xs flex-1 gap-1"
           onClick={toggleEditMode}
-          title={isEditingThisItem ? t('properties.exitCornerPin', 'Exit corner pin editor') : t('properties.editCornerPin', 'Edit corners on preview')}
+          title={isEditingThisItem ? 'Exit corner pin editor' : 'Edit corners on preview'}
         >
           <Maximize2 className="w-3 h-3" />
-          {isEditingThisItem ? t('properties.editing', 'Editing...') : t('properties.edit', 'Edit')}
+          {isEditingThisItem ? 'Editing...' : 'Edit'}
         </Button>
         {hasAnyOffset && (
           <Button
@@ -111,7 +109,7 @@ export const CornerPinSection = memo(function CornerPinSection({
             size="icon"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleReset}
-            title={t('properties.resetCornerPin', 'Reset corner pin')}
+            title="Reset corner pin"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>
@@ -120,7 +118,7 @@ export const CornerPinSection = memo(function CornerPinSection({
 
       {/* Corner inputs - 4 rows with X/Y for each corner */}
       {(Object.keys(CORNER_LABELS) as CornerKey[]).map((corner) => (
-        <PropertyRow key={corner} label={t(CORNER_LABELS[corner], CORNER_LABELS[corner].replace('properties.', '').toUpperCase())}>
+        <PropertyRow key={corner} label={CORNER_LABELS[corner]}>
           <div className="flex items-center gap-1 w-full">
             <NumberInput
               value={cornerPin[corner][0]}

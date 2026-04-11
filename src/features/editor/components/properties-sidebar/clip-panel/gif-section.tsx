@@ -10,7 +10,6 @@ import {
   NumberInput,
 } from '../components';
 import { getMixedValue } from '../utils';
-import { useTranslation } from 'react-i18next';
 
 // Speed limits (matching rate-stretch)
 const MIN_SPEED = 0.1;
@@ -38,7 +37,6 @@ function isAnimatedImageItem(item: TimelineItem): item is ImageItem {
  * - Slower speed = animation plays slower within same duration
  */
 export function GifSection({ items }: GifSectionProps) {
-  const { t } = useTranslation();
   const rateStretchItem = useTimelineStore((s: TimelineState & TimelineActions) => s.rateStretchItem);
 
   const gifItems = useMemo(
@@ -89,9 +87,9 @@ export function GifSection({ items }: GifSectionProps) {
   if (gifItems.length === 0) return null;
 
   return (
-    <PropertySection title={t('timeline.animation', 'Animation')} icon={Image} defaultOpen={true}>
+    <PropertySection title="Animation" icon={Image} defaultOpen={true}>
       {/* Playback Speed - affects animation rate (not duration) */}
-      <PropertyRow label={t('properties.speed', 'Speed')}>
+      <PropertyRow label="Speed">
         <div className="flex items-center gap-1 w-full">
           <NumberInput
             value={speed}
@@ -107,7 +105,7 @@ export function GifSection({ items }: GifSectionProps) {
             size="icon"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleResetSpeed}
-            title={t('properties.resetTo1x', 'Reset to 1x')}
+            title="Reset to 1x"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>

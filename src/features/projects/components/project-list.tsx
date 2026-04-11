@@ -30,14 +30,12 @@ import { useProjectFilters } from '../hooks/use-project-actions';
 import { getUniqueResolutions, getUniqueFps } from '../utils/project-helpers';
 import { useProjects } from '../hooks/use-project-selectors';
 import type { Project } from '@/types/project';
-import { useTranslation } from 'react-i18next';
 
 interface ProjectListProps {
   onEditProject?: (project: Project) => void;
 }
 
 export function ProjectList({ onEditProject }: ProjectListProps) {
-  const { t } = useTranslation();
   const [localSearchQuery, setLocalSearchQuery] = useState('');
 
   // Selectors
@@ -95,7 +93,7 @@ export function ProjectList({ onEditProject }: ProjectListProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder={t('projects.searchProjects')}
+              placeholder="Search projects..."
               value={localSearchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-9 pr-9"
@@ -118,10 +116,10 @@ export function ProjectList({ onEditProject }: ProjectListProps) {
             onValueChange={(value) => setFilterResolution(value === 'all' ? undefined : value)}
           >
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder={t('projects.allResolutions')} />
+              <SelectValue placeholder="All Resolutions" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t('projects.allResolutions')}</SelectItem>
+              <SelectItem value="all">All Resolutions</SelectItem>
               {uniqueResolutions.map((res) => (
                 <SelectItem key={res} value={res}>
                   {res}
@@ -136,10 +134,10 @@ export function ProjectList({ onEditProject }: ProjectListProps) {
             onValueChange={(value) => setFilterFps(value === 'all' ? undefined : Number(value))}
           >
             <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder={t('projects.allFps')} />
+              <SelectValue placeholder="All FPS" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t('projects.allFps')}</SelectItem>
+              <SelectItem value="all">All FPS</SelectItem>
               {uniqueFps.map((fps) => (
                 <SelectItem key={fps} value={fps.toString()}>
                   {fps} fps
@@ -156,24 +154,24 @@ export function ProjectList({ onEditProject }: ProjectListProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>{t('projects.sortBy')}</DropdownMenuLabel>
+              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setSortField('name')}>
-                {t('projects.name')} {sortField === 'name' && `(${sortDirection === 'asc' ? '↑' : '↓'})`}
+                Name {sortField === 'name' && `(${sortDirection === 'asc' ? '↑' : '↓'})`}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setSortField('updatedAt')}>
-                {t('projects.lastModified')}{' '}
+                Last Modified{' '}
                 {sortField === 'updatedAt' && `(${sortDirection === 'asc' ? '↑' : '↓'})`}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setSortField('createdAt')}>
-                {t('projects.dateCreated')} {sortField === 'createdAt' && `(${sortDirection === 'asc' ? '↑' : '↓'})`}
+                Date Created {sortField === 'createdAt' && `(${sortDirection === 'asc' ? '↑' : '↓'})`}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setSortField('resolution')}>
-                {t('projects.resolution')} {sortField === 'resolution' && `(${sortDirection === 'asc' ? '↑' : '↓'})`}
+                Resolution {sortField === 'resolution' && `(${sortDirection === 'asc' ? '↑' : '↓'})`}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={toggleSortDirection}>
-                {sortDirection === 'asc' ? t('projects.ascending', 'Ascending') : t('projects.descending', 'Descending')}
+                {sortDirection === 'asc' ? 'Ascending' : 'Descending'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -182,7 +180,7 @@ export function ProjectList({ onEditProject }: ProjectListProps) {
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={handleClearFilters}>
               <X className="w-4 h-4 mr-2" />
-              {t('projects.clearFilters')}
+              Clear Filters
             </Button>
           )}
         </div>
@@ -191,9 +189,10 @@ export function ProjectList({ onEditProject }: ProjectListProps) {
       {/* Empty State - No Projects */}
       {isEmpty && (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-          <h2 className="text-3xl font-semibold text-foreground mb-2">{t('projects.welcome')}</h2>
+          <h2 className="text-3xl font-semibold text-foreground mb-2">Welcome to FreeCut</h2>
           <p className="text-muted-foreground max-w-md mb-6">
-            {t('projects.welcomeDesc')}
+            Get started by creating your first video project. Choose your resolution, frame rate, and
+            start editing!
           </p>
         </div>
       )}
@@ -204,12 +203,13 @@ export function ProjectList({ onEditProject }: ProjectListProps) {
           <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
             <Search className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-xl font-semibold text-foreground mb-2">{t('projects.noProjects')}</h3>
+          <h3 className="text-xl font-semibold text-foreground mb-2">No projects found</h3>
           <p className="text-muted-foreground max-w-md mb-6">
-            {t('projects.noProjectsDesc')}
+            We couldn't find any projects matching your search criteria. Try adjusting your filters or
+            search terms.
           </p>
           <Button variant="outline" onClick={handleClearFilters}>
-            {t('projects.clearFilters')}
+            Clear Filters
           </Button>
         </div>
       )}
@@ -220,12 +220,12 @@ export function ProjectList({ onEditProject }: ProjectListProps) {
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-muted-foreground">
               {filteredProjects.length === allProjects.length
-                ? t('projects.projectCountAll', '{{count}} project(s)', { count: allProjects.length })
-                : t('projects.projectCountFiltered', '{{filtered}} of {{total}} project(s)', { filtered: filteredProjects.length, total: allProjects.length })}
+                ? `${allProjects.length} project${allProjects.length === 1 ? '' : 's'}`
+                : `${filteredProjects.length} of ${allProjects.length} project${allProjects.length === 1 ? '' : 's'}`}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredProjects.map((project) => (
               <ProjectCard key={project.id} project={project} onEdit={onEditProject} />
             ))}

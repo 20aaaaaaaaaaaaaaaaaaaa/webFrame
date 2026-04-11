@@ -3,9 +3,12 @@ import { Columns2 } from 'lucide-react';
 import {
   VideoPreview,
   PlaybackControls,
+  AlignmentToolbar,
   TimecodeDisplay,
   PreviewZoomControls,
   SourceMonitor,
+  InlineSourcePreview,
+  InlineCompositionPreview,
   ColorScopesMonitor,
 } from '@/features/editor/deps/preview';
 import { useTimelineStore } from '@/features/editor/deps/timeline-store';
@@ -17,8 +20,6 @@ import { EDITOR_LAYOUT_CSS_VALUES, getEditorLayout } from '@/shared/ui/editor-la
 import { InteractionLockRegion } from './interaction-lock-region';
 import { Button } from '@/components/ui/button';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { AudioMeter } from './audio-meter';
-import { useTranslation } from 'react-i18next';
 
 interface PreviewAreaProps {
   project: {
@@ -35,19 +36,7 @@ const PREVIEW_SOURCE_SPLIT_DEFAULT_PERCENT = 50;
 const PREVIEW_SCOPES_SPLIT_DEFAULT_PERCENT = 32;
 const PREVIEW_SIDE_PANEL_MIN_PERCENT = 22;
 const PREVIEW_SIDE_PANEL_MAX_PERCENT = 55;
-const PREVIEW_PROGRAM_MIN_PERCENT = 30;
 
-function clampSidePanelPercent(nextPercent: number, oppositePercent: number): number {
-  const maxPercent = Math.max(
-    0,
-    Math.min(
-      PREVIEW_SIDE_PANEL_MAX_PERCENT,
-      100 - PREVIEW_PROGRAM_MIN_PERCENT - oppositePercent
-    )
-  );
-  const minPercent = Math.min(PREVIEW_SIDE_PANEL_MIN_PERCENT, maxPercent);
-  return Math.min(maxPercent, Math.max(minPercent, nextPercent));
-}
 
 function PreviewSplitHandle({
   onMouseDown,
@@ -82,6 +71,53 @@ function PreviewSplitHandle({
   );
 }
 
+const ProgramPreviewSurface = memo(function ProgramPreviewSurface({
+  project,
+  containerSize,
+  suspendOverlay,
+}: {
+  project: {
+    width: number;
+    height: number;
+    fps: number;
+    backgroundColor?: string;
+  };
+  containerSize: {
+    width: number;
+    height: number;
+  };
+  suspendOverlay: boolean;
+}) {
+  const mediaSkimPreviewMediaId = useEditorStore((s) => s.mediaSkimPreviewMediaId);
+  const mediaSkimPreviewFrame = useEditorStore((s) => s.mediaSkimPreviewFrame);
+  const compoundClipSkimPreviewCompositionId = useEditorStore((s) => s.compoundClipSkimPreviewCompositionId);
+  const compoundClipSkimPreviewFrame = useEditorStore((s) => s.compoundClipSkimPreviewFrame);
+
+  return (
+    <ErrorBoundary level="component">
+      {compoundClipSkimPreviewCompositionId ? (
+        <InlineCompositionPreview
+          compositionId={compoundClipSkimPreviewCompositionId}
+          seekFrame={compoundClipSkimPreviewFrame}
+          containerSize={containerSize}
+        />
+      ) : mediaSkimPreviewMediaId ? (
+        <InlineSourcePreview
+          mediaId={mediaSkimPreviewMediaId}
+          seekFrame={mediaSkimPreviewFrame}
+          containerSize={containerSize}
+        />
+      ) : (
+        <VideoPreview
+          project={project}
+          containerSize={containerSize}
+          suspendOverlay={suspendOverlay}
+        />
+      )}
+    </ErrorBoundary>
+  );
+});
+
 /**
  * Preview Area Component
  *
@@ -94,7 +130,6 @@ function PreviewSplitHandle({
  * Uses granular Zustand selectors in child components
  */
 export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaProps) {
-  const { t } = useTranslation();
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const editorDensity = useSettingsStore((s) => s.editorDensity);
@@ -154,18 +189,18 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
   const remainingPenPoints = Math.max(0, 3 - penVertexCount);
   const displayedEditVertexCount = previewVertexCount || editVertexCount;
   const penModeHint = canFinishPenPath
-    ? t('preview.penHintFinish', 'Close the path from here, or click the first node.')
+    ? 'Close the path from here, or click the first node.'
     : penVertexCount === 0
-      ? t('preview.penHintStart', 'Click in the preview to place your first point.')
-      : t('preview.penHintMore', `Add ${remainingPenPoints} more point(s) to finish.`);
+      ? 'Click in the preview to place your first point.'
+      : `Add ${remainingPenPoints} more ${remainingPenPoints === 1 ? 'point' : 'points'} to finish.`;
   const editModeHint = displayedEditVertexCount > 0
-    ? t('preview.editHintPath', 'Drag points, handles, or the mask body to adjust the shape.')
-    : t('preview.editHintMove', 'Drag inside the mask to move it.');
+    ? 'Drag points, handles, or the mask body to adjust the shape.'
+    : 'Drag inside the mask to move it.';
   const selectedVertexHint = selectedVertexCount === 0
-    ? t('preview.vertexHintNone', 'Select a point to enable corner and bezier conversion.')
+    ? 'Select a point to enable corner and bezier conversion.'
     : selectedVertexCount === 1 && selectedVertexIndex !== null
-      ? t('preview.vertexHintSingle', `Point ${selectedVertexIndex + 1} selected for knot conversion.`)
-      : t('preview.vertexHintMultiple', `${selectedVertexCount} points selected for knot conversion.`);
+      ? `Point ${selectedVertexIndex + 1} selected for knot conversion.`
+      : `${selectedVertexCount} points selected for knot conversion.`;
 
   // Measure preview container size for zoom calculations
   useEffect(() => {
@@ -251,40 +286,25 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
     useEditorStore.getState().setColorScopesOpen(false);
   }, []);
 
-  const displayedSourceSplitPercent = sourcePreviewMediaId
-    ? clampSidePanelPercent(sourceSplitPercent, colorScopesOpen ? scopesSplitPercent : 0)
-    : 0;
+  // Scopes get their absolute percentage (clamped independently)
   const displayedScopesSplitPercent = colorScopesOpen
-    ? clampSidePanelPercent(scopesSplitPercent, sourcePreviewMediaId ? displayedSourceSplitPercent : 0)
+    ? Math.max(PREVIEW_SIDE_PANEL_MIN_PERCENT, Math.min(PREVIEW_SIDE_PANEL_MAX_PERCENT, scopesSplitPercent))
     : 0;
-  const sourceResetPercent = sourcePreviewMediaId
-    ? clampSidePanelPercent(
-      PREVIEW_SOURCE_SPLIT_DEFAULT_PERCENT,
-      colorScopesOpen ? displayedScopesSplitPercent : 0
-    )
-    : PREVIEW_SOURCE_SPLIT_DEFAULT_PERCENT;
-  const scopesResetPercent = colorScopesOpen
-    ? clampSidePanelPercent(
-      PREVIEW_SCOPES_SPLIT_DEFAULT_PERCENT,
-      sourcePreviewMediaId ? displayedSourceSplitPercent : 0
-    )
-    : PREVIEW_SCOPES_SPLIT_DEFAULT_PERCENT;
 
-  useEffect(() => {
-    if (sourcePreviewMediaId) {
-      setSourceSplitPercent((prev) => {
-        const next = clampSidePanelPercent(prev, colorScopesOpen ? scopesSplitPercent : 0);
-        return prev === next ? prev : next;
-      });
-    }
+  // sourceSplitPercent is a ratio (0-100) of the source+program space.
+  // Both panels shrink proportionally when scopes open.
+  const availableForSourceProgram = 100 - displayedScopesSplitPercent;
+  const proportionalSource = (sourceSplitPercent / 100) * availableForSourceProgram;
+  const displayedSourceSplitPercent = sourcePreviewMediaId
+    ? Math.max(
+        PREVIEW_SIDE_PANEL_MIN_PERCENT,
+        Math.min(availableForSourceProgram - PREVIEW_SIDE_PANEL_MIN_PERCENT, proportionalSource),
+      )
+    : 0;
 
-    if (colorScopesOpen) {
-      setScopesSplitPercent((prev) => {
-        const next = clampSidePanelPercent(prev, sourcePreviewMediaId ? sourceSplitPercent : 0);
-        return prev === next ? prev : next;
-      });
-    }
-  }, [colorScopesOpen, scopesSplitPercent, sourcePreviewMediaId, sourceSplitPercent]);
+  const sourceResetPercent = PREVIEW_SOURCE_SPLIT_DEFAULT_PERCENT;
+  const scopesResetPercent = PREVIEW_SCOPES_SPLIT_DEFAULT_PERCENT;
+
 
   const handleResetSourceSplit = useCallback(() => {
     setSourceSplitPercent(sourceResetPercent);
@@ -304,7 +324,11 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
     const handleMouseMove = (mouseEvent: MouseEvent) => {
       if (!isDraggingSourceSplitRef.current || !splitContainerRef.current) return;
       const rect = splitContainerRef.current.getBoundingClientRect();
-      pendingSourceSplitPercentRef.current = ((mouseEvent.clientX - rect.left) / rect.width) * 100;
+      const absPercent = ((mouseEvent.clientX - rect.left) / rect.width) * 100;
+      // Convert absolute position to ratio of source+program space
+      const available = 100 - (colorScopesOpen ? displayedScopesSplitPercent : 0);
+      pendingSourceSplitPercentRef.current =
+        available > 0 ? Math.max(0, Math.min(100, (absPercent / available) * 100)) : 50;
 
       if (sourceSplitDragRafRef.current !== null) return;
       sourceSplitDragRafRef.current = requestAnimationFrame(() => {
@@ -316,12 +340,7 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
         lastSourceSplitDragUpdateTsRef.current = now;
         const pendingPercent = pendingSourceSplitPercentRef.current;
         if (pendingPercent !== null) {
-          setSourceSplitPercent(
-            clampSidePanelPercent(
-              pendingPercent,
-              colorScopesOpen ? displayedScopesSplitPercent : 0
-            )
-          );
+          setSourceSplitPercent(pendingPercent);
         }
       });
     };
@@ -329,12 +348,7 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
     const cleanup = () => {
       const pendingPercent = pendingSourceSplitPercentRef.current;
       if (pendingPercent !== null) {
-        setSourceSplitPercent(
-          clampSidePanelPercent(
-            pendingPercent,
-            colorScopesOpen ? displayedScopesSplitPercent : 0
-          )
-        );
+        setSourceSplitPercent(pendingPercent);
       }
       if (sourceSplitDragRafRef.current !== null) {
         cancelAnimationFrame(sourceSplitDragRafRef.current);
@@ -382,10 +396,7 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
         const pendingPercent = pendingScopesSplitPercentRef.current;
         if (pendingPercent !== null) {
           setScopesSplitPercent(
-            clampSidePanelPercent(
-              pendingPercent,
-              sourcePreviewMediaId ? displayedSourceSplitPercent : 0
-            )
+            Math.max(PREVIEW_SIDE_PANEL_MIN_PERCENT, Math.min(PREVIEW_SIDE_PANEL_MAX_PERCENT, pendingPercent))
           );
         }
       });
@@ -395,10 +406,7 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
       const pendingPercent = pendingScopesSplitPercentRef.current;
       if (pendingPercent !== null) {
         setScopesSplitPercent(
-          clampSidePanelPercent(
-            pendingPercent,
-            sourcePreviewMediaId ? displayedSourceSplitPercent : 0
-          )
+          Math.max(PREVIEW_SIDE_PANEL_MIN_PERCENT, Math.min(PREVIEW_SIDE_PANEL_MAX_PERCENT, pendingPercent))
         );
       }
       if (scopesSplitDragRafRef.current !== null) {
@@ -422,7 +430,7 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
     scopesSplitDragCleanupRef.current = cleanup;
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [displayedSourceSplitPercent, sourcePreviewMediaId]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -460,162 +468,172 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
               onMouseDown={handleSourceSplitDragStart}
               onReset={handleResetSourceSplit}
               showReset={Math.abs(displayedSourceSplitPercent - sourceResetPercent) > 0.5}
-              resetLabel={t('preview.resetSourceWidth', 'Reset source monitor width')}
-              resetTooltip={t('preview.resetSourceWidth', 'Reset Source Monitor Width')}
+              resetLabel="Reset source monitor width"
+              resetTooltip="Reset Source Monitor Width"
             />
           </InteractionLockRegion>
         </>
       )}
 
         <div
-          className={`flex flex-row min-w-0 min-h-0 ${hasSidePanels ? '' : 'flex-1'}`}
+          className={`flex flex-col min-w-0 min-h-0 ${hasSidePanels ? '' : 'flex-1'}`}
           style={hasSidePanels ? { width: `${programPanelPercent}%` } : undefined}
           role="region"
-          aria-label="Program monitor wrapper"
+          aria-label="Program monitor"
         >
-          <AudioMeter />
-          
-          <div className="flex-1 flex flex-col min-w-0 min-h-0" role="region" aria-label="Program monitor">
-            {hasSidePanels && (
-              <div
-                className="border-b border-border flex items-center px-3 flex-shrink-0"
-                style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewSplitHeaderHeight }}
-              >
-                <span className="text-xs text-muted-foreground">{t('preview.program', 'Program')}</span>
-              </div>
-            )}
-
-            <div className="flex-1 flex flex-col min-w-0 min-h-0">
-              <div ref={previewContainerRef} className="flex-1 min-h-0 relative overflow-hidden" aria-label="Preview canvas region">
-                <ErrorBoundary level="component">
-                  <VideoPreview
-                    project={liveProject}
-                    containerSize={containerSize}
-                    suspendOverlay={isPanelDragging}
-                  />
-                </ErrorBoundary>
-              </div>
-
-              {isPenModeActive ? (
-                <div
-                  className="border-t border-border panel-header flex items-center px-3 flex-shrink-0 gap-3 overflow-hidden"
-                  style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
-                  role="toolbar"
-                  aria-label="Mask pen controls"
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-500">
-                        {t('media.pen', 'Pen Tool')}
-                      </span>
-                      <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-600">
-                        {penVertexCount} {t('preview.points', 'points')}
-                      </span>
-                    </div>
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">
-                      {penModeHint}
-                    </span>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <span className="hidden text-[11px] text-muted-foreground lg:inline">
-                      {t('preview.backspaceHint', 'Backspace removes the last point.')}
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-8 px-3 text-[11px]"
-                      disabled={!canFinishPenPath}
-                      onClick={requestFinishPenMode}
-                    >
-                      {t('preview.finishShape', 'Finish Shape')}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 px-3 text-[11px]"
-                      onClick={requestCancelPenMode}
-                    >
-                      {t('timeline.cancel', 'Cancel')}
-                    </Button>
-                  </div>
-                </div>
-              ) : isPathEditModeActive ? (
-                <div
-                  className="border-t border-border panel-header flex items-center px-3 flex-shrink-0 gap-3 overflow-hidden"
-                  style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
-                  role="toolbar"
-                  aria-label="Mask path edit controls"
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-500">
-                        {t('preview.pathEdit', 'Path Edit')}
-                      </span>
-                      <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-600">
-                        {displayedEditVertexCount} {t('preview.points', 'points')}
-                      </span>
-                    </div>
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">
-                      {editModeHint}
-                    </span>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <span className="hidden text-[11px] text-muted-foreground xl:inline">
-                      {t('preview.pathEditHint', 'Double-click an edge to add a point. Drag empty space to box-select points.')}
-                    </span>
-                    <span className="hidden text-[11px] text-muted-foreground 2xl:inline">
-                      {selectedVertexHint}
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={hasSelectedVertex ? 'secondary' : 'outline'}
-                      className="h-8 px-3 text-[11px]"
-                      disabled={!hasSelectedVertex}
-                      onClick={() => requestConvertSelectedVertex('corner')}
-                    >
-                      {t('preview.corner', 'Corner')}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={hasSelectedVertex ? 'secondary' : 'outline'}
-                      className="h-8 px-3 text-[11px]"
-                      disabled={!hasSelectedVertex}
-                      onClick={() => requestConvertSelectedVertex('bezier')}
-                    >
-                      {t('preview.bezier', 'Bezier')}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-8 px-3 text-[11px]"
-                      onClick={stopMaskEditing}
-                    >
-                      {t('preview.done', 'Done')}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <InteractionLockRegion locked={false} overlayClassName="rounded-none">
-                  <div
-                    className="border-t border-border panel-header flex flex-wrap items-center justify-center px-2 py-1 flex-shrink-0 gap-x-3 gap-y-0.5"
-                    style={{ minHeight: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
-                  >
-                    <div className="flex-shrink-0">
-                      <TimecodeDisplay fps={fps} totalFrames={totalFrames} />
-                    </div>
-                    <PlaybackControls totalFrames={totalFrames} fps={fps} />
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <PreviewZoomControls />
-                    </div>
-                  </div>
-                </InteractionLockRegion>
-              )}
-            </div>
+        {hasSidePanels && (
+          <div
+            className="border-b border-border flex items-center px-3 flex-shrink-0"
+            style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewSplitHeaderHeight }}
+          >
+            <span className="text-xs text-muted-foreground">Program</span>
           </div>
+        )}
+
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          <div ref={previewContainerRef} className="flex-1 min-h-0 relative overflow-hidden" aria-label="Preview canvas region">
+            <ProgramPreviewSurface
+              project={liveProject}
+              containerSize={containerSize}
+              suspendOverlay={isPanelDragging}
+            />
+          </div>
+
+          {isPenModeActive ? (
+            <div
+              className="border-t border-border panel-header flex items-center px-3 flex-shrink-0 gap-3 overflow-hidden"
+              style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
+              role="toolbar"
+              aria-label="Mask pen controls"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-500">
+                    Pen Tool
+                  </span>
+                  <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-600">
+                    {penVertexCount} {penVertexCount === 1 ? 'point' : 'points'}
+                  </span>
+                </div>
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                  {penModeHint}
+                </span>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <span className="hidden text-[11px] text-muted-foreground lg:inline">
+                  Backspace removes the last point.
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 px-3 text-[11px]"
+                  disabled={!canFinishPenPath}
+                  onClick={requestFinishPenMode}
+                >
+                  Finish Shape
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-3 text-[11px]"
+                  onClick={requestCancelPenMode}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : isPathEditModeActive ? (
+            <div
+              className="border-t border-border panel-header flex items-center px-3 flex-shrink-0 gap-3 overflow-hidden"
+              style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
+              role="toolbar"
+              aria-label="Mask path edit controls"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-500">
+                    Path Edit
+                  </span>
+                  <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-600">
+                    {displayedEditVertexCount} {displayedEditVertexCount === 1 ? 'point' : 'points'}
+                  </span>
+                </div>
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                  {editModeHint}
+                </span>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <span className="hidden text-[11px] text-muted-foreground xl:inline">
+                  Double-click an edge to add a point. Drag empty space to box-select points.
+                </span>
+                <span className="hidden text-[11px] text-muted-foreground 2xl:inline">
+                  {selectedVertexHint}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={hasSelectedVertex ? 'secondary' : 'outline'}
+                  className="h-8 px-3 text-[11px]"
+                  disabled={!hasSelectedVertex}
+                  onClick={() => requestConvertSelectedVertex('corner')}
+                >
+                  Corner
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={hasSelectedVertex ? 'secondary' : 'outline'}
+                  className="h-8 px-3 text-[11px]"
+                  disabled={!hasSelectedVertex}
+                  onClick={() => requestConvertSelectedVertex('bezier')}
+                >
+                  Bezier
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 px-3 text-[11px]"
+                  onClick={stopMaskEditing}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <InteractionLockRegion locked={false} overlayClassName="rounded-none">
+              <div className="flex flex-col flex-shrink-0">
+                {/* Alignment row */}
+                <div className="border-t border-border panel-header flex items-center justify-center px-3 h-7 overflow-hidden">
+                  <div className="flex items-center gap-0">
+                    <AlignmentToolbar projectSize={{ width, height }} />
+                  </div>
+                </div>
+
+                {/* Playback controls row */}
+                <div
+                  className="@container border-t border-border panel-header relative flex items-center px-3 overflow-hidden"
+                  style={{ height: EDITOR_LAYOUT_CSS_VALUES.previewControlsHeight }}
+                >
+                  <div className="flex-shrink-0">
+                    <TimecodeDisplay fps={fps} totalFrames={totalFrames} />
+                  </div>
+
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="flex items-center gap-2.5 pointer-events-auto">
+                      <PlaybackControls totalFrames={totalFrames} fps={fps} />
+                    </div>
+                  </div>
+
+                  <div className="ml-auto flex-shrink-0">
+                    <PreviewZoomControls />
+                  </div>
+                </div>
+              </div>
+            </InteractionLockRegion>
+          )}
         </div>
+      </div>
 
       {colorScopesOpen && (
         <>
@@ -624,8 +642,8 @@ export const PreviewArea = memo(function PreviewArea({ project }: PreviewAreaPro
               onMouseDown={handleScopesSplitDragStart}
               onReset={handleResetScopesSplit}
               showReset={Math.abs(displayedScopesSplitPercent - scopesResetPercent) > 0.5}
-              resetLabel={t('preview.resetScopesWidth', 'Reset color scopes width')}
-              resetTooltip={t('preview.resetScopesWidth', 'Reset Color Scopes Width')}
+              resetLabel="Reset color scopes width"
+              resetTooltip="Reset Color Scopes Width"
             />
           </InteractionLockRegion>
           <InteractionLockRegion

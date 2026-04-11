@@ -5,6 +5,7 @@ import { createLogger } from '@/shared/logging/logger';
 const logger = createLogger('MediaLibrary');
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,16 +28,20 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { MarqueeOverlay } from '@/components/marquee-overlay';
 import { cn } from '@/shared/ui/cn';
 import { MediaGrid } from './media-grid';
-import { MediaInfoPanel } from './media-info-panel';
 import { CompositionsSection } from './compositions-section';
 import { MissingMediaDialog } from './missing-media-dialog';
 import { OrphanedClipsDialog } from './orphaned-clips-dialog';
 import { UnsupportedAudioCodecDialog } from './unsupported-audio-codec-dialog';
-import { useMediaLibraryStore } from '../stores/media-library-store';
+import { useFilteredMediaItems, useMediaLibraryStore } from '../stores/media-library-store';
 import {
-  useTimelineStore,
+  deleteCompoundClips,
+  getCompoundClipDeletionImpact,
+  getMediaDeletionImpact,
+  removeProjectItems,
+  useCompositionsStore,
   useCompositionNavigationStore,
 } from '@/features/media-library/deps/timeline-stores';
 import { useProjectStore } from '@/features/media-library/deps/projects';
@@ -44,7 +49,10 @@ import { proxyService } from '../services/proxy-service';
 import { mediaLibraryService } from '../services/media-library-service';
 import { extractValidMediaFileEntriesFromDataTransfer } from '../utils/file-drop';
 import { getSharedProxyKey } from '../utils/proxy-key';
-import { useTranslation } from 'react-i18next';
+import { getMediaType } from '../utils/validation';
+import { getProjectBrokenMediaIds } from '@/features/media-library/utils/broken-media';
+import type { MediaMetadata } from '@/types/storage';
+import { isMarqueeJustFinished, useMarqueeSelection, type MarqueeItem } from '@/hooks/use-marquee-selection';
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -64,23 +72,75 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+const GROUP_ICONS = {
+  video: Video,
+  audio: FileAudio,
+  image: ImageIcon,
+  gif: Film,
+} as const;
+
+interface MediaTypeGroupProps {
+  groupKey: string;
+  label: string;
+  icon: keyof typeof GROUP_ICONS;
+  items: MediaMetadata[];
+  isOpen: boolean;
+  onToggle: (key: string, open: boolean) => void;
+  onMediaSelect?: (mediaId: string) => void;
+  viewMode: 'grid' | 'list';
+  itemSize: number;
+}
+
+const MediaTypeGroup = memo(function MediaTypeGroup({
+  groupKey, label, icon, items, isOpen, onToggle, onMediaSelect, viewMode, itemSize,
+}: MediaTypeGroupProps) {
+  const Icon = GROUP_ICONS[icon];
+  return (
+    <Collapsible open={isOpen} onOpenChange={(open) => onToggle(groupKey, open)}>
+      <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 hover:bg-secondary/50 rounded-md px-2 -mx-2 transition-colors">
+        <ChevronRight
+          className={cn(
+            'w-3 h-3 text-muted-foreground transition-transform',
+            isOpen && 'rotate-90'
+          )}
+        />
+        <Icon className="w-3 h-3 text-muted-foreground" />
+        <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+          {label}
+        </span>
+        <span className="text-[10px] tabular-nums text-muted-foreground/60">
+          {items.length}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-1 pb-2">
+        <MediaGrid
+          items={items}
+          onMediaSelect={onMediaSelect}
+          viewMode={viewMode}
+          itemSize={itemSize}
+        />
+      </CollapsibleContent>
+    </Collapsible>
+  );
+});
+
 interface MediaLibraryProps {
   onMediaSelect?: (mediaId: string) => void;
 }
 
+interface PendingLibraryDeletion {
+  mediaIds: string[];
+  compositionIds: string[];
+}
+
 export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaLibraryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isFocusedRef = useRef(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [idsToDelete, setIdsToDelete] = useState<string[]>([]);
-  const [infoPanelDismissed, setInfoPanelDismissed] = useState(false);
-  const [mediaOpen, setMediaOpen] = useState(true);
+  const [pendingDeletion, setPendingDeletion] = useState<PendingLibraryDeletion>({ mediaIds: [], compositionIds: [] });
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(['video', 'audio', 'image', 'gif']));
   const [isDragging, setIsDragging] = useState(false);
-  const { t } = useTranslation();
-
-  // Timeline store selectors - don't subscribe to items to avoid re-renders
-  // Read items from store directly when needed (in delete handler)
-  const removeTimelineItems = useTimelineStore((s) => s.removeItems);
 
   // Store selectors
   const currentProjectId = useMediaLibraryStore((s) => s.currentProjectId);
@@ -98,8 +158,11 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
   const setSortBy = useMediaLibraryStore((s) => s.setSortBy);
   const viewMode = useMediaLibraryStore((s) => s.viewMode);
   const setViewMode = useMediaLibraryStore((s) => s.setViewMode);
+  const mediaItemSize = useMediaLibraryStore((s) => s.mediaItemSize);
+  const setMediaItemSize = useMediaLibraryStore((s) => s.setMediaItemSize);
   const selectedMediaIds = useMediaLibraryStore((s) => s.selectedMediaIds);
-  const mediaItems = useMediaLibraryStore((s) => s.mediaItems);
+  const selectedCompositionIds = useMediaLibraryStore((s) => s.selectedCompositionIds);
+  const setSelection = useMediaLibraryStore((s) => s.setSelection);
   const mediaById = useMediaLibraryStore((s) => s.mediaById);
   const clearSelection = useMediaLibraryStore((s) => s.clearSelection);
   const error = useMediaLibraryStore((s) => s.error);
@@ -112,6 +175,30 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
   const projectStoreProjectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const proxyStatus = useMediaLibraryStore((s) => s.proxyStatus);
   const proxyProgress = useMediaLibraryStore((s) => s.proxyProgress);
+  const filteredMediaItems = useFilteredMediaItems();
+  const mediaGroups = useMemo(() => {
+    const groups: { key: string; label: string; icon: 'video' | 'audio' | 'image' | 'gif'; items: MediaMetadata[] }[] = [];
+    const videos: MediaMetadata[] = [];
+    const audio: MediaMetadata[] = [];
+    const gifs: MediaMetadata[] = [];
+    const images: MediaMetadata[] = [];
+    for (const item of filteredMediaItems) {
+      if (item.mimeType === 'image/gif') {
+        gifs.push(item);
+      } else {
+        const t = getMediaType(item.mimeType);
+        if (t === 'video') videos.push(item);
+        else if (t === 'audio') audio.push(item);
+        else images.push(item);
+      }
+    }
+    if (videos.length > 0) groups.push({ key: 'video', label: 'Videos', icon: 'video', items: videos });
+    if (audio.length > 0) groups.push({ key: 'audio', label: 'Audio', icon: 'audio', items: audio });
+    if (images.length > 0) groups.push({ key: 'image', label: 'Images', icon: 'image', items: images });
+    if (gifs.length > 0) groups.push({ key: 'gif', label: 'GIFs', icon: 'gif', items: gifs });
+    return groups;
+  }, [filteredMediaItems]);
+  const compositions = useCompositionsStore((s) => s.compositions);
 
   // Composition navigation â€” show banner when inside a sub-comp
   const activeCompositionId = useCompositionNavigationStore((s) => s.activeCompositionId);
@@ -128,40 +215,72 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
   useEffect(() => {
     if (!currentProjectId && projectStoreProjectId) {
       setCurrentProject(projectStoreProjectId);
+      void loadMediaItems().catch((error) => {
+        logger.error('Failed to load media library during store recovery:', error);
+      });
     }
-  }, [currentProjectId, projectStoreProjectId, setCurrentProject]);
+  }, [currentProjectId, loadMediaItems, projectStoreProjectId, setCurrentProject]);
 
-  // Load media items on mount and when project changes.
-  // We keep both paths because HMR can remount components without a project-id change.
-  useEffect(() => {
-    if (currentProjectId) {
-      loadMediaItems();
-    }
-  }, [currentProjectId, loadMediaItems]);
+  const selectedAssetCount = selectedMediaIds.length + selectedCompositionIds.length;
+  const deleteAssetCount = pendingDeletion.mediaIds.length + pendingDeletion.compositionIds.length;
 
-  // Also load on mount specifically (handles HMR case where deps haven't changed)
-  useEffect(() => {
-    if (currentProjectId) {
-      loadMediaItems();
-    }
-  }, []); // Intentionally empty - run only on mount
+  const marqueeItems: MarqueeItem[] = useMemo(
+    () => [
+      ...compositions.map((composition) => ({
+        id: `composition:${composition.id}`,
+        getBoundingRect: () => {
+          const element = scrollContainerRef.current?.querySelector(`[data-composition-id="${composition.id}"]`);
+          if (!element) return null;
+          const rect = element.getBoundingClientRect();
+          return {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+          };
+        },
+      })),
+      ...filteredMediaItems.map((media) => ({
+        id: `media:${media.id}`,
+        getBoundingRect: () => {
+          const element = scrollContainerRef.current?.querySelector(`[data-media-id="${media.id}"]`);
+          if (!element) return null;
+          const rect = element.getBoundingClientRect();
+          return {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+          };
+        },
+      })),
+    ],
+    [compositions, filteredMediaItems]
+  );
 
-  // Reset info panel dismissed state when selection changes
-  const prevSelectionRef = useRef<string[]>([]);
-  useEffect(() => {
-    const changed = selectedMediaIds.length !== prevSelectionRef.current.length ||
-      selectedMediaIds.some((id, i) => id !== prevSelectionRef.current[i]);
-    if (changed) {
-      setInfoPanelDismissed(false);
-      prevSelectionRef.current = selectedMediaIds;
-    }
-  }, [selectedMediaIds]);
+  const { marqueeState } = useMarqueeSelection({
+    containerRef: scrollContainerRef as React.RefObject<HTMLElement>,
+    items: marqueeItems,
+    enabled: marqueeItems.length > 0,
+    onSelectionChange: (ids) => {
+      const nextMediaIds: string[] = [];
+      const nextCompositionIds: string[] = [];
 
-  // Resolve the selected media item for the info panel (single selection only)
-  const selectedMediaForInfo = useMemo(() => {
-    if (selectedMediaIds.length !== 1 || infoPanelDismissed) return null;
-    return mediaById[selectedMediaIds[0]!] ?? null;
-  }, [selectedMediaIds, mediaById, infoPanelDismissed]);
+      for (const id of ids) {
+        if (id.startsWith('media:')) {
+          nextMediaIds.push(id.slice('media:'.length));
+        } else if (id.startsWith('composition:')) {
+          nextCompositionIds.push(id.slice('composition:'.length));
+        }
+      }
+
+      setSelection({ mediaIds: nextMediaIds, compositionIds: nextCompositionIds });
+    },
+  });
 
   // Track focus and clear selection when clicking outside the media library
   useEffect(() => {
@@ -174,7 +293,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
       } else {
         // Clicked outside - clear focus and selection
         isFocusedRef.current = false;
-        if (selectedMediaIds.length > 0) {
+        if (selectedAssetCount > 0) {
           clearSelection();
         }
       }
@@ -186,7 +305,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
     return () => {
       document.removeEventListener('mousedown', handleMouseDown, true);
     };
-  }, [selectedMediaIds.length, clearSelection]);
+  }, [selectedAssetCount, clearSelection]);
 
   // Handle Delete key to delete selected items
   useEffect(() => {
@@ -198,7 +317,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
       if (!isFocusedRef.current) return;
 
       // Don't trigger if no items selected
-      if (selectedMediaIds.length === 0) return;
+      if (selectedAssetCount === 0) return;
 
       // Don't trigger if dialog is already open
       if (showDeleteDialog) return;
@@ -211,7 +330,10 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
 
       // Prevent default behavior and trigger delete
       event.preventDefault();
-      setIdsToDelete([...selectedMediaIds]);
+      setPendingDeletion({
+        mediaIds: [...selectedMediaIds],
+        compositionIds: [...selectedCompositionIds],
+      });
       setShowDeleteDialog(true);
     };
 
@@ -220,7 +342,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedMediaIds, showDeleteDialog]);
+  }, [selectedAssetCount, selectedCompositionIds, selectedMediaIds, showDeleteDialog]);
 
   // Import files using file picker (instant, no copy)
   const handleImport = async () => {
@@ -280,7 +402,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
       const jsonData = e.dataTransfer.getData('application/json');
       if (jsonData) {
         const data = JSON.parse(jsonData);
-        if (data.type === 'media-item' || data.type === 'media-items') {
+        if (data.type === 'media-item' || data.type === 'media-items' || data.type === 'composition') {
           return;
         }
       }
@@ -290,7 +412,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
 
     const { supported, entries, errors } = await extractValidMediaFileEntriesFromDataTransfer(e.dataTransfer);
     if (!supported) {
-      showNotification({ type: 'warning', message: 'Drag-drop not supported. Please use Google Chrome.' });
+      showNotification({ type: 'warning', message: 'Drag-drop not supported in this browser. Use Chrome or Edge.' });
       return;
     }
 
@@ -311,6 +433,11 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
     return count;
   }, [proxyStatus]);
 
+  const currentProjectBrokenMediaIds = useMemo(
+    () => getProjectBrokenMediaIds(brokenMediaIds, mediaById),
+    [brokenMediaIds, mediaById]
+  );
+
   // Average progress of all generating proxies
   const generatingAvgProgress = useMemo(() => {
     if (generatingCount === 0) return 0;
@@ -328,7 +455,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
   const handleGenerateSelectedProxies = async () => {
     const selectedItems = selectedMediaIds
       .map((id) => mediaById[id])
-      .filter((m): m is typeof mediaItems[number] =>
+      .filter((m): m is MediaMetadata =>
         m !== undefined
         && proxyService.needsProxy(m.width, m.height, m.mimeType, m.audioCodec)
         && proxyStatus.get(m.id) !== 'ready'
@@ -358,38 +485,71 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
     }).length;
   }, [selectedMediaIds, mediaById, proxyStatus]);
 
-  // Find timeline items that reference the media being deleted (for batch delete from selection)
-  // Read from store directly to avoid subscribing to items array
-  const affectedTimelineItems = useMemo(() => {
-    if (idsToDelete.length === 0) return [];
-    const timelineItems = useTimelineStore.getState().items;
-    return timelineItems.filter((item) => item.mediaId && idsToDelete.includes(item.mediaId));
-  }, [idsToDelete]);
+  const deleteSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (pendingDeletion.mediaIds.length > 0) {
+      parts.push(`${pendingDeletion.mediaIds.length} media item${pendingDeletion.mediaIds.length === 1 ? '' : 's'}`);
+    }
+    if (pendingDeletion.compositionIds.length > 0) {
+      parts.push(`${pendingDeletion.compositionIds.length} compound clip${pendingDeletion.compositionIds.length === 1 ? '' : 's'}`);
+    }
+    return parts.join(' and ');
+  }, [pendingDeletion.compositionIds.length, pendingDeletion.mediaIds.length]);
+
+  const affectedMediaImpact = useMemo(() => (
+    pendingDeletion.mediaIds.length > 0
+      ? getMediaDeletionImpact(pendingDeletion.mediaIds)
+      : { itemIds: [], rootReferenceCount: 0, nestedReferenceCount: 0, totalReferenceCount: 0 }
+  ), [pendingDeletion.mediaIds]);
+  const compoundClipDeleteImpact = useMemo(() => (
+    pendingDeletion.compositionIds.length > 0
+      ? getCompoundClipDeletionImpact(pendingDeletion.compositionIds)
+      : { rootReferenceCount: 0, nestedReferenceCount: 0, totalReferenceCount: 0 }
+  ), [pendingDeletion.compositionIds]);
+  const affectedAssetInstanceCount = affectedMediaImpact.totalReferenceCount + compoundClipDeleteImpact.totalReferenceCount;
 
   const handleDeleteSelected = () => {
-    if (selectedMediaIds.length === 0) return;
+    if (selectedAssetCount === 0) return;
     // Capture the IDs BEFORE opening dialog (selection may be cleared by click outside)
-    setIdsToDelete([...selectedMediaIds]);
+    setPendingDeletion({
+      mediaIds: [...selectedMediaIds],
+      compositionIds: [...selectedCompositionIds],
+    });
     setShowDeleteDialog(true);
   };
 
   const handleConfirmDelete = async () => {
     setShowDeleteDialog(false);
     try {
-      // First remove timeline items that reference this media
-      if (affectedTimelineItems.length > 0) {
-        const timelineItemIds = affectedTimelineItems.map((item) => item.id);
-        removeTimelineItems(timelineItemIds);
+      // First remove timeline items that reference selected library assets
+      if (affectedMediaImpact.itemIds.length > 0) {
+        removeProjectItems(affectedMediaImpact.itemIds);
       }
 
-      // Then delete the media from the library
-      await deleteMediaBatch(idsToDelete);
-      setIdsToDelete([]); // Clear after successful delete
+      if (pendingDeletion.mediaIds.length > 0) {
+        await deleteMediaBatch(pendingDeletion.mediaIds);
+      }
+
+      if (pendingDeletion.compositionIds.length > 0) {
+        deleteCompoundClips(pendingDeletion.compositionIds);
+      }
+
+      clearSelection();
+      setPendingDeletion({ mediaIds: [], compositionIds: [] });
     } catch (error) {
       logger.error('Delete failed:', error);
-      setIdsToDelete([]); // Clear even on error
+      setPendingDeletion({ mediaIds: [], compositionIds: [] });
     }
   };
+
+  const handleScrollContentClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (isMarqueeJustFinished()) return;
+
+    const target = event.target as HTMLElement;
+    if (!target.closest('[data-media-id], [data-composition-id]')) {
+      clearSelection();
+    }
+  }, [clearSelection]);
 
   return (
     <div ref={containerRef} className="h-full flex flex-col">
@@ -405,41 +565,41 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               hover:bg-primary/90
               disabled:opacity-40 disabled:cursor-not-allowed
               transition-colors duration-150"
-            title={t('media.import', 'Import media files')}
+            title="Import media files"
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            <span>{t('media.import', 'Import')}</span>
+            <span>Import</span>
           </button>
 
           {/* Missing media indicator */}
-          {brokenMediaIds.length > 0 && (
+          {currentProjectBrokenMediaIds.length > 0 && (
             <button
               onClick={openMissingMediaDialog}
               className="flex items-center gap-1.5 h-7 px-2.5 rounded-md
                 bg-destructive/10 border border-destructive/25 text-destructive
                 hover:bg-destructive/20 hover:border-destructive/40
                 transition-colors duration-150"
-              title={t('media.missingMediaFiles', 'View missing media files')}
+              title="View missing media files"
             >
               <Link2Off className="w-3.5 h-3.5" />
-              <span>{brokenMediaIds.length} {t('media.missing', 'Missing')}</span>
+              <span>{currentProjectBrokenMediaIds.length} Missing</span>
             </button>
           )}
 
 
           {/* Selection indicator & actions */}
-          {selectedMediaIds.length > 0 && (
+          {selectedAssetCount > 0 && (
             <>
               <div className="h-4 w-px bg-border" />
 
               {/* Selection badge */}
               <div className="flex items-center gap-1 h-7 pl-2 pr-1 rounded-md bg-accent/50 border border-border">
-                <span className="tabular-nums">{selectedMediaIds.length}</span>
-                <span className="text-muted-foreground">{t('media.selected', 'selected')}</span>
+                <span className="tabular-nums">{selectedAssetCount}</span>
+                <span className="text-muted-foreground">selected</span>
                 <button
                   onClick={clearSelection}
                   className="ml-0.5 p-1 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
-                  title={t('media.clearSelection', 'Clear selection')}
+                  title="Clear selection"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -465,10 +625,10 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 className="flex items-center gap-1 h-7 px-2 rounded-md
                   text-destructive/80 hover:text-destructive hover:bg-destructive/10
                   transition-colors duration-150"
-                title={t('media.deleteSelected', 'Delete selected')}
+                title="Delete selected"
               >
                 <Trash2 className="w-3 h-3" />
-                <span>{t('timeline.delete', 'Delete')}</span>
+                <span>Delete</span>
               </button>
             </>
           )}
@@ -496,7 +656,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               onClick={clearError}
               className="h-6 px-2 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
             >
-              {t('timeline.hide', 'Dismiss')}
+              Dismiss
             </Button>
           </div>
         </div>
@@ -506,7 +666,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
       {notification && (
         <div className={`mx-4 mt-3 p-2.5 rounded text-xs animate-in slide-in-from-top-2 duration-200 ${
           notification.type === 'info'
-            ? 'bg-green-700/10 border border-green-700/30'
+            ? 'bg-orange-500/10 border border-orange-500/30'
             : notification.type === 'warning'
             ? 'bg-yellow-500/10 border border-yellow-500/30'
             : notification.type === 'success'
@@ -517,7 +677,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <Info className={`w-3.5 h-3.5 flex-shrink-0 ${
                 notification.type === 'info'
-                  ? 'text-green-700'
+                  ? 'text-orange-500'
                   : notification.type === 'warning'
                   ? 'text-yellow-500'
                   : notification.type === 'success'
@@ -526,7 +686,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               }`} />
               <p className={`leading-relaxed line-clamp-2 ${
                 notification.type === 'info'
-                  ? 'text-green-800 dark:text-green-600'
+                  ? 'text-orange-600 dark:text-orange-400'
                   : notification.type === 'warning'
                   ? 'text-yellow-600 dark:text-yellow-400'
                   : notification.type === 'success'
@@ -550,7 +710,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
         <div className="relative group">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input
-            placeholder={t('media.searchPlaceholder', 'Search media...')}
+            placeholder="Search media..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 h-7 bg-secondary border border-border focus:border-primary text-foreground placeholder:text-muted-foreground text-xs"
@@ -566,21 +726,23 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
         </div>
 
         {/* Filters and sort */}
-        <div className="flex items-center gap-1.5">
+        <div className="@container flex items-center gap-1.5 min-w-0">
           {/* Filter by type */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
-                className={`h-6 bg-secondary border text-[10px] px-2 ${
+                className={`h-6 bg-secondary border text-[10px] px-2 flex-shrink-0 ${
                   filterByType
                     ? 'border-primary text-primary hover:bg-primary/10'
                     : 'border-border text-muted-foreground hover:border-primary/50 hover:text-primary'
                 }`}
               >
-                <Filter className="w-2.5 h-2.5 mr-1" />
-                {filterByType ? (t(`media.${filterByType}`) as string).toUpperCase() : t('media.allTypes', 'ALL')}
+                <Filter className="w-2.5 h-2.5" />
+                <span className="hidden @[280px]:inline ml-1">
+                  {filterByType ? filterByType.toUpperCase() : 'ALL'}
+                </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="bg-popover border border-border">
@@ -588,7 +750,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 onClick={() => setFilterByType(null)}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
-                {t('media.allTypes', 'All Types')}
+                All Types
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem
@@ -596,21 +758,21 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
                 <Video className="w-3 h-3 mr-2" />
-                {t('media.video', 'Video')}
+                Video
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setFilterByType('audio')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
                 <FileAudio className="w-3 h-3 mr-2" />
-                {t('media.audio', 'Audio')}
+                Audio
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setFilterByType('image')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
                 <ImageIcon className="w-3 h-3 mr-2" />
-                {t('media.image', 'Image')}
+                Image
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -621,10 +783,12 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               <Button
                 variant="outline"
                 size="sm"
-                className="h-6 bg-secondary border border-border text-muted-foreground hover:border-primary/50 hover:text-primary text-[10px] px-2"
+                className="h-6 bg-secondary border border-border text-muted-foreground hover:border-primary/50 hover:text-primary text-[10px] px-2 flex-shrink-0"
               >
-                <SortAsc className="w-2.5 h-2.5 mr-1" />
-                {sortBy === 'name' ? t('media.name', 'NAME') : sortBy === 'date' ? t('media.date', 'DATE') : t('media.size', 'SIZE')}
+                <SortAsc className="w-2.5 h-2.5" />
+                <span className="hidden @[280px]:inline ml-1">
+                  {sortBy === 'name' ? 'NAME' : sortBy === 'date' ? 'DATE' : 'SIZE'}
+                </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="bg-popover border border-border">
@@ -632,49 +796,62 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 onClick={() => setSortBy('date')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
-                {t('media.dateNewest', 'Date (Newest)')}
+                Date (Newest)
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setSortBy('name')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
-                {t('media.nameAZ', 'Name (A-Z)')}
+                Name (A-Z)
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setSortBy('size')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
-                {t('media.sizeLargest', 'Size (Largest)')}
+                Size (Largest)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* View mode toggle */}
-          <div className="flex items-center border border-border rounded bg-secondary ml-auto">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setViewMode('grid')}
-              className={`h-6 w-6 p-0 rounded-none rounded-l ${
-                viewMode === 'grid'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Grid3x3 className="w-3 h-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setViewMode('list')}
-              className={`h-6 w-6 p-0 rounded-none rounded-r ${
-                viewMode === 'list'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <List className="w-3 h-3" />
-            </Button>
+          {/* View mode toggle + item size */}
+          <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+            {viewMode === 'grid' && (
+              <Slider
+                min={1}
+                max={5}
+                step={1}
+                value={[mediaItemSize]}
+                onValueChange={([v]) => setMediaItemSize(v ?? 3)}
+                className="flex-1 min-w-6 max-w-24"
+                aria-label="Grid item size"
+              />
+            )}
+            <div className="flex items-center border border-border rounded bg-secondary flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className={`h-6 w-6 p-0 rounded-none rounded-l ${
+                  viewMode === 'grid'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Grid3x3 className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className={`h-6 w-6 p-0 rounded-none rounded-r ${
+                  viewMode === 'list'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <List className="w-3 h-3" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -697,39 +874,48 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
       {/* Scrollable content: wrapper provides relative context for the drag overlay */}
       <div className="flex-1 relative min-h-0">
         <div
-          className="h-full overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]"
+          ref={scrollContainerRef}
+          className="relative h-full overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]"
+          onClick={handleScrollContentClick}
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
+          <MarqueeOverlay marqueeState={marqueeState} />
+
           {/* Compositions section â€” collapsible, auto-hidden when empty */}
           <CompositionsSection />
 
-          {/* Media section â€” collapsible, matches compositions header style */}
-          <Collapsible open={mediaOpen} onOpenChange={setMediaOpen}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 hover:bg-secondary/50 rounded-md px-2 -mx-2 transition-colors">
-              <ChevronRight
-                className={cn(
-                  'w-3 h-3 text-muted-foreground transition-transform',
-                  mediaOpen && 'rotate-90'
-                )}
-              />
-              <Film className="w-3 h-3 text-muted-foreground" />
-              <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-                Media
-              </span>
-              <span className="text-[10px] tabular-nums text-muted-foreground/60">
-                {mediaItems.length}
-              </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-1 pb-2">
-              <MediaGrid
-                onMediaSelect={onMediaSelect}
-                viewMode={viewMode}
-              />
-            </CollapsibleContent>
-          </Collapsible>
+          {/* Media sections â€” grouped by type */}
+          {mediaGroups.map((group) => (
+            <MediaTypeGroup
+              key={group.key}
+              groupKey={group.key}
+              label={group.label}
+              icon={group.icon}
+              items={group.items}
+              isOpen={openGroups.has(group.key)}
+              onToggle={(key, open) => setOpenGroups((prev) => {
+                const next = new Set(prev);
+                if (open) next.add(key);
+                else next.delete(key);
+                return next;
+              })}
+              onMediaSelect={onMediaSelect}
+              viewMode={viewMode}
+              itemSize={mediaItemSize}
+            />
+          ))}
+
+          {/* Loading / empty state when no groups to show */}
+          {mediaGroups.length === 0 && (
+            <MediaGrid
+              onMediaSelect={onMediaSelect}
+              viewMode={viewMode}
+              itemSize={mediaItemSize}
+            />
+          )}
         </div>
 
         {/* Drag overlay â€” absolute sibling, always covers the visible viewport */}
@@ -743,7 +929,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               <div className="w-16 h-16 rounded-full flex items-center justify-center bg-primary/20 border-2 border-primary">
                 <Upload className="w-7 h-7 text-primary animate-bounce" />
               </div>
-              <p className="text-base font-bold tracking-wide text-primary">{t('media.dropFilesHere', 'DROP FILES HERE')}</p>
+              <p className="text-base font-bold tracking-wide text-primary">DROP FILES HERE</p>
               <div className="flex flex-wrap justify-center gap-2 mt-2">
                 <span className="px-2 py-0.5 bg-secondary border border-border rounded text-xs font-mono text-muted-foreground">MP4</span>
                 <span className="px-2 py-0.5 bg-secondary border border-border rounded text-xs font-mono text-muted-foreground">WebM</span>
@@ -786,32 +972,32 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
         </div>
       )}
 
-      {/* Media info panel - slides up from bottom when single item selected */}
-      {selectedMediaForInfo && (
-        <MediaInfoPanel
-          key={selectedMediaForInfo.id}
-          media={selectedMediaForInfo}
-          onClose={() => setInfoPanelDismissed(true)}
-        />
-      )}
-
       {/* Delete confirmation dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open);
+          if (!open) {
+            setPendingDeletion({ mediaIds: [], compositionIds: [] });
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('media.deleteSelected', 'Delete selected items?')}</AlertDialogTitle>
+            <AlertDialogTitle>Delete selected assets?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>
-                  {t('media.deleteConfirmation', `Are you sure you want to delete ${idsToDelete.length} selected item(s)? This action cannot be undone.`)}
+                  Are you sure you want to delete {deleteSummary || `${deleteAssetCount} selected asset${deleteAssetCount === 1 ? '' : 's'}`}?
+                  This action cannot be undone.
                 </p>
-                {affectedTimelineItems.length > 0 && (
+                {affectedAssetInstanceCount > 0 && (
                   <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md">
                     <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-yellow-600 dark:text-yellow-400">
-                      <p className="font-medium">{t('media.timelineClipsRemoved', 'Timeline clips will be removed')}</p>
+                      <p className="font-medium">Linked instances will be removed</p>
                       <p className="text-xs mt-1 text-yellow-600/80 dark:text-yellow-400/80">
-                        {t('media.timelineClipsWarning', `${affectedTimelineItems.length} clip(s) in the timeline use this media and will also be deleted.`)}
+                        {affectedAssetInstanceCount} clip{affectedAssetInstanceCount > 1 ? 's' : ''} across the timeline and nested compound clips reference these assets and will also be deleted.
                       </p>
                     </div>
                   </div>
@@ -820,9 +1006,9 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('timeline.cancel', 'Cancel')}</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {t('timeline.delete', 'Delete')}
+              Delete {deleteSummary || `${deleteAssetCount} asset${deleteAssetCount === 1 ? '' : 's'}`}{affectedAssetInstanceCount > 0 ? ` & ${affectedAssetInstanceCount} clip${affectedAssetInstanceCount > 1 ? 's' : ''}` : ''}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

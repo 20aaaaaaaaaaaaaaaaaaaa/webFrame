@@ -23,11 +23,14 @@ import {
 } from 'lucide-react';
 import { useMediaLibraryStore } from '../stores/media-library-store';
 import { useProjectStore } from '@/features/media-library/deps/projects';
+import { showMediaFilePicker } from '@/features/media-library/utils/media-file-picker';
+import { getProjectBrokenMediaInfo } from '@/features/media-library/utils/broken-media';
 
 export function MissingMediaDialog() {
   const showDialog = useMediaLibraryStore((s) => s.showMissingMediaDialog);
   const closeDialog = useMediaLibraryStore((s) => s.closeMissingMediaDialog);
   const brokenMediaInfo = useMediaLibraryStore((s) => s.brokenMediaInfo);
+  const mediaById = useMediaLibraryStore((s) => s.mediaById);
   const relinkMedia = useMediaLibraryStore((s) => s.relinkMedia);
   const relinkMediaBatch = useMediaLibraryStore((s) => s.relinkMediaBatch);
   const markMediaHealthy = useMediaLibraryStore((s) => s.markMediaHealthy);
@@ -45,10 +48,10 @@ export function MissingMediaDialog() {
 
   const brokenItems = useMemo(
     () =>
-      Array.from(brokenMediaInfo.values()).filter(
+      getProjectBrokenMediaInfo(brokenMediaInfo, mediaById).filter(
         (item) => !relinkedIds.has(item.mediaId)
       ),
-    [brokenMediaInfo, relinkedIds]
+    [brokenMediaInfo, mediaById, relinkedIds]
   );
 
   const permissionDenied = brokenItems.filter(
@@ -134,19 +137,7 @@ export function MissingMediaDialog() {
   const handleRelinkSingle = async (mediaId: string) => {
     setRelinking(mediaId);
     try {
-      const handles = await window.showOpenFilePicker({
-        multiple: false,
-        types: [
-          {
-            description: 'Media files',
-            accept: {
-              'video/*': ['.mp4', '.webm', '.mov', '.avi', '.mkv'],
-              'audio/*': ['.mp3', '.wav', '.ogg', '.m4a', '.aac'],
-              'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
-            },
-          },
-        ],
-      });
+      const handles = await showMediaFilePicker({ multiple: false });
 
       const handle = handles[0];
       if (!handle) return;
@@ -333,4 +324,3 @@ export function MissingMediaDialog() {
     </Dialog>
   );
 }
-
