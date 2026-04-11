@@ -23,7 +23,8 @@ i18n
         translation: trTranslations,
       },
     },
-    fallbackLng: 'en',
+    fallbackLng: 'tr',
+    lng: 'tr',
     debug: false,
     
     // We will let the settings-store manage the initial load or overrides if needed,
