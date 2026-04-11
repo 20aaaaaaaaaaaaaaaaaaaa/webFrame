@@ -20,6 +20,9 @@ import {
   Pen,
   WandSparkles,
   Settings,
+  Briefcase,
+  Keyboard,
+  Github,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEditorStore } from '@/shared/state/editor';
@@ -35,6 +38,8 @@ import {
 import { KeyframeGraphPanel } from '@/features/editor/deps/timeline-ui';
 import { TransitionsPanel } from './transitions-panel';
 import { SettingsDialog } from './settings-dialog';
+import { ShortcutsDialog } from './shortcuts-dialog';
+import { Toolbar } from './toolbar';
 import {
   createDefaultAdjustmentItem,
   createDefaultShapeItem,
@@ -60,7 +65,30 @@ import {
 
 const logger = createLogger('MediaSidebar');
 
-export const MediaSidebar = memo(function MediaSidebar() {
+interface MediaSidebarProps {
+  projectId?: string;
+  project?: {
+    id: string;
+    name: string;
+    width: number;
+    height: number;
+    fps: number;
+  };
+  isDirty?: boolean;
+  onSave?: () => Promise<void>;
+  onExport?: () => void;
+  onExportBundle?: () => void;
+}
+
+export const MediaSidebar = memo(function MediaSidebar({
+  projectId,
+  project,
+  isDirty,
+  onSave,
+  onExport,
+  onExportBundle,
+}: MediaSidebarProps = {}) {
+  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
   const editorDensity = useSettingsStore((s) => s.editorDensity);
   const editorLayout = getEditorLayout(editorDensity);
   // Use granular selectors - Zustand v5 best practice
@@ -443,18 +471,68 @@ export const MediaSidebar = memo(function MediaSidebar() {
             <LineChart className="w-4 h-4" />
           </button>
 
-          <div className="w-6 border-t border-border mx-auto my-0.5" />
+          <div className="flex-1" />
 
-          <button
-            onClick={() => setShowSettingsDialog(true)}
-            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-red-500 hover:bg-red-500/10 mt-1"
-            data-tooltip="Settings"
-            data-tooltip-side="right"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          {/* Action Icons (Bottom) */}
+          <div className="flex flex-col gap-1 py-1.5 items-center w-full px-1 pb-3">
+            <button
+              onClick={() => {
+                if (activeTab === 'project' && leftSidebarOpen) {
+                  toggleLeftSidebar();
+                } else {
+                  setActiveTab('project');
+                  if (!leftSidebarOpen) toggleLeftSidebar();
+                }
+              }}
+              className={`
+                w-9 h-9 rounded-lg flex items-center justify-center transition-all
+                ${activeTab === 'project' && leftSidebarOpen
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'text-primary hover:bg-secondary/50'
+                }
+              `}
+              data-tooltip="Project"
+              data-tooltip-side="right"
+            >
+              <Briefcase className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => setShowShortcutsDialog(true)}
+              className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-primary hover:bg-secondary/50"
+              data-tooltip="Keyboard Shortcuts"
+              data-tooltip-side="right"
+            >
+              <Keyboard className="w-4 h-4" />
+            </button>
+
+            <a
+              href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-primary hover:bg-secondary/50"
+              data-tooltip="View on GitHub"
+              data-tooltip-side="right"
+            >
+              <Github className="w-4 h-4" />
+            </a>
+
+            <button
+              onClick={() => setShowSettingsDialog(true)}
+              className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-red-500 hover:bg-red-500/10 mt-1"
+              data-tooltip="Settings"
+              data-tooltip-side="right"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
+
+      <ShortcutsDialog
+        open={showShortcutsDialog}
+        onOpenChange={setShowShortcutsDialog}
+      />
 
       <SettingsDialog
         open={showSettingsDialog}
@@ -484,7 +562,7 @@ export const MediaSidebar = memo(function MediaSidebar() {
             style={{ height: EDITOR_LAYOUT_CSS_VALUES.sidebarHeaderHeight }}
           >
             <span className="text-sm font-medium text-foreground">
-              {categories.find((c) => c.id === activeTab)?.label}
+              {categories.find((c) => c.id === activeTab)?.label || (activeTab === 'project' ? 'Project' : '')}
             </span>
             <Button
               variant="ghost"
@@ -501,6 +579,20 @@ export const MediaSidebar = memo(function MediaSidebar() {
                 <ChevronDown className="w-3 h-3" />
               )}
             </Button>
+          </div>
+
+          {/* Project Tab */}
+          <div className={`flex-1 overflow-y-auto p-3 ${activeTab === 'project' ? 'block' : 'hidden'}`}>
+            {projectId && project && (
+              <Toolbar
+                projectId={projectId}
+                project={project}
+                isDirty={isDirty}
+                onSave={onSave}
+                onExport={onExport}
+                onExportBundle={onExportBundle}
+              />
+            )}
           </div>
 
           {/* Media Tab - Full Media Library */}
