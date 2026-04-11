@@ -10,20 +10,32 @@
 
 Originally based on the FreeCut engine, **webFrame** has been extensively customized and enhanced to provide a more global and user-friendly experience.
 
-## Key Enhancements
+## 📺 Video Introduction
+![webFrame Introduction Video](.system_generated/recordings/webframe_intro_demo_1775919543651.webp)
+*(Watch our latest 30-second introduction showcasing the fluid language and theme transitions!)*
 
-### 🌍 Full Bilingual Support
-webFrame now features comprehensive **English and Turkish** localization. From basic tooltips to complex export settings, the entire interface is fully translatable, making it accessible to a wider range of creators.
-- Seamless, instant language switching.
-- Specialized video editing terminology translations.
-- Robust localization infrastructure powered by `i18next`.
+## 🚀 Our Innovations & Enhancements
 
-### 🎨 Advanced Theme System
-Personalize your workspace with our modern theme system. We've moved beyond a single look to offer curated environments designed for different lighting conditions and aesthetic preferences:
-- **Classic Dark**: The high-contrast, professional look for focused editing sessions.
-- **Studio Gray**: A smooth, lower-contrast gray balanced for long-term comfort.
-- **Light Gray**: A bright, modern interface for well-lit environments.
-- All themes are built on a consistent OKLCH design system for optimal color harmony.
+webFrame has been evolved from its original open-source engine into a highly customized, production-ready tool. Our development focus has been on accessibility and professional ergonomics:
+
+### 🌍 Intelligent Localization Layer (i18n)
+We didn't just translate strings; we built a comprehensive localization infrastructure:
+- **Zero-Latency Switching**: Using `i18next` and a reactive `Zustand` store, the interface transforms between English and Turkish instantly, with no state loss.
+- **Turkish Post-Production Jargon**: Every term (e.g., *Zaman Çizelgesi* for Timeline, *Klipleri Böl* for Split Clips) has been localized to match the industry standards of Turkish video editors.
+- **Deep Component Localization**: Every corner of the app, from complex GPU effect sliders to the WebCodecs export settings, has been audited for 100% bilingual coverage.
+
+### 🎨 Professional Design System & Themes
+We've implemented a state-of-the-art theme system specifically for long editing sessions:
+- **OKLCH Color Precision**: By using the OKLCH color model, we ensure that every UI element maintains perfect contrast and visibility regardless of the chosen theme.
+- **Custom-Crafted Themes**: 
+  - **Classic Dark**: High-focus, deep-black environment.
+  - **Studio Gray**: An ergonomic mid-tone for balanced room lighting.
+  - **Light Gray**: A modern, vibrant look for creative day-work.
+- **Unified Visual State**: Changes propagate through all dockable panels (Media Library, Properties, Timeline) to maintain a cohesive professional environment.
+
+### 🛠️ Production-Ready Workflow Tweaks
+- **Enhanced Export Dialog**: A completely redesigned export interface that guides users through complex codec and quality settings in their native language.
+- **Intuitive Media Management**: Localized search, filter, and sorting workflows that simplify the management of hundreds of local assets.
 
 ---
 
