@@ -29,5 +29,25 @@ webFrame features a professional-grade flexible interface:
 
 ---
 
+## ⚡ Quick Start
+
+**Prerequisites:** Node.js 18+
+
+```bash
+# Clone the repository
+git clone https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame.git
+cd webFrame
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) in a modern Chromium-based browser (Chrome or Edge 113+ recommended).
+
+---
+
 ## License
 webFrame is a fork of the FreeCut project by Walter Low. It is licensed under the [MIT License](LICENSE).
