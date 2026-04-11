@@ -1,4 +1,5 @@
-﻿import { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { MediaMetadata } from '@/types/storage';
 import {
   Dialog,
@@ -206,6 +207,8 @@ async function regenerateProjectThumbnails(
 }
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+  const { t } = useTranslation();
+  const appLanguage = useSettingsStore((s) => s.appLanguage);
   const snapEnabled = useSettingsStore((s) => s.snapEnabled);
   const editorDensity = useSettingsStore((s) => s.editorDensity);
   const showWaveforms = useSettingsStore((s) => s.showWaveforms);
@@ -314,6 +317,25 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             <div className="space-y-3 px-6 py-5 pr-7">
               {activeSection === 'general' && (
                 <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">{t('settings.language', 'Language')}</Label>
+                    <Select
+                      value={appLanguage}
+                      onValueChange={(value) => setSetting('appLanguage', value as 'tr' | 'en')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tr">Türkçe</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {t('settings.languageDesc', 'Choose your application language')}
+                    </p>
+                  </div>
+                  <Separator className="bg-white/8 my-3" />
                   <div className="space-y-1.5">
                     <Label className="text-sm">Editor Density</Label>
                     <Select

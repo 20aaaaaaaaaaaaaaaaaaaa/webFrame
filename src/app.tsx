@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { GlobalTooltip } from '@/components/ui/global-tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { useSettingsStore } from '@/features/settings/stores/settings-store';
 import { routeTree } from './routeTree.gen';
 
 const router = createRouter({ routeTree });
@@ -15,6 +17,15 @@ declare module '@tanstack/react-router' {
 }
 
 export function App() {
+  const { i18n } = useTranslation();
+  const appLanguage = useSettingsStore(s => s.appLanguage);
+
+  useEffect(() => {
+    if (i18n.language !== appLanguage) {
+      i18n.changeLanguage(appLanguage);
+    }
+  }, [appLanguage, i18n]);
+
   // Prevent default browser zoom application-wide
   useEffect(() => {
     const wheelListenerOptions: AddEventListenerOptions = { passive: false, capture: true };
