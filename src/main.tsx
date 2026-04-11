@@ -1,9 +1,10 @@
-﻿import { StrictMode } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { toast } from 'sonner';
 import { App } from './app';
 import { initializeDebugUtils } from '@/app/debug';
 import { createLogger } from '@/shared/logging/logger';
+import '@/i18n/config'; // Initialize i18n
 import './index.css';
 
 const log = createLogger('App');
