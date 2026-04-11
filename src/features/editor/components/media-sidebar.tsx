@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useEffect, memo, Activity } from 'react';
+import { useCallback, useMemo, useRef, useEffect, useState, memo, Activity } from 'react';
 import {
   ChevronDown,
   ChevronLeft,
@@ -19,6 +19,7 @@ import {
   Blend,
   Pen,
   WandSparkles,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEditorStore } from '@/shared/state/editor';
@@ -33,6 +34,7 @@ import {
 } from '@/features/editor/deps/media-library';
 import { KeyframeGraphPanel } from '@/features/editor/deps/timeline-ui';
 import { TransitionsPanel } from './transitions-panel';
+import { SettingsDialog } from './settings-dialog';
 import {
   createDefaultAdjustmentItem,
   createDefaultShapeItem,
@@ -73,6 +75,8 @@ export const MediaSidebar = memo(function MediaSidebar() {
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
   const sidebarWidth = useEditorStore((s) => s.sidebarWidth);
   const setSidebarWidth = useEditorStore((s) => s.setSidebarWidth);
+
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
 
   // Auto-expand sidebar to 35% viewport when keyframe editor opens
   const prevKeyframeOpenRef = useRef(keyframeEditorOpen);
@@ -438,8 +442,24 @@ export const MediaSidebar = memo(function MediaSidebar() {
           >
             <LineChart className="w-4 h-4" />
           </button>
+
+          <div className="w-6 border-t border-border mx-auto my-0.5" />
+
+          <button
+            onClick={() => setShowSettingsDialog(true)}
+            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-red-500 hover:bg-red-500/10 mt-1"
+            data-tooltip="Settings"
+            data-tooltip-side="right"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
       </div>
+
+      <SettingsDialog
+        open={showSettingsDialog}
+        onOpenChange={setShowSettingsDialog}
+      />
 
       {/* Content Panel */}
       <div
