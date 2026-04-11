@@ -1,4 +1,5 @@
 import { useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -63,6 +64,7 @@ function getSupportedEaseOptions(
  * Allows editing presentation style, duration, timing, and direction.
  */
 export function TransitionPanel() {
+  const { t } = useTranslation();
   // Granular selectors (Zustand v5 best practice)
   const selectedTransitionId = useSelectionStore(
     (s: SelectionState) => s.selectedTransitionId
@@ -245,22 +247,22 @@ export function TransitionPanel() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <Zap className="w-8 h-8 text-muted-foreground/50 mb-2" />
-        <p className="text-xs text-muted-foreground">Transition not found</p>
+        <p className="text-xs text-muted-foreground">{t('properties.transitionNotFound', 'Transition not found')}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <PropertySection title="Transition" icon={Zap} defaultOpen={true}>
-        <PropertyRow label="Preset" tooltip="Transition style preset">
+      <PropertySection title={t('properties.transition', 'Transition')} icon={Zap} defaultOpen={true}>
+        <PropertyRow label={t('properties.preset', 'Preset')} tooltip="Transition style preset">
           <div className="w-full">
             <Select
               value={currentPresentationConfig ? getPresentationOptionValue(currentPresentationConfig) : undefined}
               onValueChange={handlePresentationPresetChange}
             >
               <SelectTrigger className="h-7 text-xs flex-1 min-w-0">
-                <SelectValue placeholder="Select preset" />
+                <SelectValue placeholder={t('properties.selectPreset', 'Select preset')} />
               </SelectTrigger>
               <SelectContent>
                 {presentationConfigGroups.map(([category, configs]) => (
@@ -285,7 +287,7 @@ export function TransitionPanel() {
         </PropertyRow>
 
         {/* Duration slider */}
-        <PropertyRow label="Duration" tooltip="Transition duration">
+        <PropertyRow label={t('properties.duration', 'Duration')} tooltip="Transition duration">
           <div className="flex items-center gap-1 w-full">
             <SliderInput
               value={selectedTransition.durationInFrames}
@@ -303,7 +305,7 @@ export function TransitionPanel() {
               size="icon"
               className="h-7 w-7 flex-shrink-0"
               onClick={handleResetDuration}
-              title="Reset to 1s"
+              title={t('properties.resetTo1s', 'Reset to 1s')}
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </Button>
@@ -311,7 +313,7 @@ export function TransitionPanel() {
         </PropertyRow>
 
         {easeOptions.length > 0 && (
-          <PropertyRow label="Ease" tooltip="Easing curve for the transition">
+          <PropertyRow label={t('properties.ease', 'Ease')} tooltip="Easing curve for the transition">
             <div className="flex items-center gap-0.5 p-0.5 bg-secondary rounded-md">
               {easeOptions.map((option) => (
               <button
@@ -325,7 +327,7 @@ export function TransitionPanel() {
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {option.label}
+                {t(`properties.${option.label.toLowerCase().replace(/ & /g, 'Out')}`, option.label)}
               </button>
               ))}
             </div>
@@ -342,7 +344,7 @@ export function TransitionPanel() {
             onClick={handleDelete}
           >
             <Trash2 className="w-3 h-3 mr-1.5" />
-            Delete
+            {t('properties.delete', 'Delete')}
           </Button>
         </div>
       </PropertySection>

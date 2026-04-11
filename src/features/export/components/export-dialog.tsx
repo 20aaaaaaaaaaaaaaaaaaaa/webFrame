@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -116,6 +117,7 @@ function getDefaultCodecForFormat(
 }
 
 export function ExportDialog({ open, onClose }: ExportDialogProps) {
+  const { t } = useTranslation();
   const projectWidth = useProjectStore((s) => s.currentProject?.metadata.width ?? 1920);
   const projectHeight = useProjectStore((s) => s.currentProject?.metadata.height ?? 1080);
   // Timeline state for in/out points and duration calculation
@@ -396,33 +398,33 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const getTitle = () => {
     switch (view) {
       case 'settings':
-        return 'Export Video';
+        return t('export.title', 'Export Video');
       case 'progress':
         return (
           <span className="flex items-center gap-2">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            Exporting video...
+            {t('export.exportingVideo', 'Exporting video...')}
           </span>
         );
       case 'complete':
         return (
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
-            Export complete!
+            {t('export.exportComplete', 'Export complete!')}
           </span>
         );
       case 'error':
         return (
           <span className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-destructive" />
-            Export failed
+            {t('export.exportFailed', 'Export failed')}
           </span>
         );
       case 'cancelled':
         return (
           <span className="flex items-center gap-2">
             <X className="h-5 w-5 text-muted-foreground" />
-            Export cancelled
+            {t('export.exportCancelled', 'Export cancelled')}
           </span>
         );
     }
@@ -431,15 +433,15 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const getDescription = () => {
     switch (view) {
       case 'settings':
-        return 'Configure export settings and render your video';
+        return t('export.configureDesc', 'Configure export settings and render your video');
       case 'progress':
-        return 'Rendering your video';
+        return t('export.renderingDesc', 'Rendering your video');
       case 'complete':
-        return 'Your video is ready to download';
+        return t('export.readyDesc', 'Your video is ready to download');
       case 'error':
-        return 'Something went wrong during export';
+        return t('export.errorDesc', 'Something went wrong during export');
       case 'cancelled':
-        return 'The export was cancelled';
+        return t('export.cancelledDesc', 'The export was cancelled');
     }
   };
 
@@ -461,7 +463,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           <div className="space-y-6 py-4">
             {/* Export Mode: Video or Audio Toggle Group */}
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Export Type</Label>
+              <Label className="text-sm font-medium">{t('export.exportType', 'Export Type')}</Label>
               <div className="flex rounded-md border border-border p-0.5 bg-muted/30">
                 <button
                   type="button"
@@ -473,7 +475,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   }`}
                 >
                   <Video className="h-3.5 w-3.5" />
-                  Video
+                  {t('export.video', 'Video')}
                 </button>
                 <button
                   type="button"
@@ -485,7 +487,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   }`}
                 >
                   <Music className="h-3.5 w-3.5" />
-                  Audio
+                  {t('export.audio', 'Audio')}
                 </button>
               </div>
             </div>
@@ -495,12 +497,12 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Scissors className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Export Range</span>
+                  <span className="text-sm font-medium">{t('export.exportRange', 'Export Range')}</span>
                 </div>
                 {hasInOutPoints && (
                   <div className="flex items-center gap-2">
                     <Label htmlFor="render-whole" className="text-xs text-muted-foreground">
-                      Render whole project
+                      {t('export.renderWholeProject', 'Render whole project')}
                     </Label>
                     <Switch
                       id="render-whole"
@@ -512,19 +514,19 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               </div>
               <div className="grid grid-cols-3 gap-3 text-sm">
                 <div>
-                  <div className="text-xs text-muted-foreground mb-0.5">In</div>
+                  <div className="text-xs text-muted-foreground mb-0.5">{t('export.in', 'In')}</div>
                   <div className="font-mono text-foreground">
                     {formatTimecode(exportRange.start, fps)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground mb-0.5">Out</div>
+                  <div className="text-xs text-muted-foreground mb-0.5">{t('export.out', 'Out')}</div>
                   <div className="font-mono text-foreground">
                     {formatTimecode(exportRange.end, fps)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground mb-0.5">Duration</div>
+                  <div className="text-xs text-muted-foreground mb-0.5">{t('export.duration', 'Duration')}</div>
                   <div className="font-mono text-foreground">
                     {formatTime(framesToSeconds(exportRange.duration, fps))}
                   </div>
@@ -532,7 +534,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               </div>
               {hasInOutPoints && !renderWholeProject && (
                 <p className="text-xs text-muted-foreground">
-                  Exporting in/out range. Toggle above to export the full timeline.
+                  {t('export.exportingRangeHint', 'Exporting in/out range. Toggle above to export the full timeline.')}
                 </p>
               )}
             </div>
@@ -545,7 +547,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                     <Alert>
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        Could not verify browser codec support. Export will validate again when rendering starts.
+                        {t('export.codecVerifyError', 'Could not verify browser codec support. Export will validate again when rendering starts.')}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -554,19 +556,19 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                     <Alert>
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        This browser cannot encode video at {settings.resolution.width}x{settings.resolution.height}. Try a lower resolution or another browser.
+                        {t('export.resolutionError', 'This browser cannot encode video at this resolution. Try a lower resolution or another browser.')}
                       </AlertDescription>
                     </Alert>
                   )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="container">Format</Label>
+                    <Label htmlFor="container">{t('export.format', 'Format')}</Label>
                     <Select
                       value={videoContainer}
                       onValueChange={(v) => setVideoContainer(v as ClientVideoContainer)}
                     >
                       <SelectTrigger id="container">
-                        <SelectValue placeholder="Select format" />
+                        <SelectValue placeholder={t('export.selectFormat', 'Select format')} />
                       </SelectTrigger>
                       <SelectContent>
                         {videoContainerOptions.map((option) => (
@@ -582,13 +584,13 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="codec">Codec</Label>
+                    <Label htmlFor="codec">{t('export.codec', 'Codec')}</Label>
                     <Select
                       value={settings.codec}
                       onValueChange={(value) => setSettings({ ...settings, codec: value as ExportSettings['codec'] })}
                     >
                       <SelectTrigger id="codec">
-                        <SelectValue placeholder="Select codec" />
+                        <SelectValue placeholder={t('export.selectCodec', 'Select codec')} />
                       </SelectTrigger>
                       <SelectContent>
                         {codecOptions.map((option) => (
@@ -601,25 +603,25 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="quality">Quality</Label>
+                    <Label htmlFor="quality">{t('export.quality', 'Quality')}</Label>
                     <Select
                       value={settings.quality}
                       onValueChange={(value) => setSettings({ ...settings, quality: value as ExportSettings['quality'] })}
                     >
                       <SelectTrigger id="quality">
-                        <SelectValue placeholder="Select quality" />
+                        <SelectValue placeholder={t('export.selectQuality', 'Select quality')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low (Faster, smaller file)</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High (Recommended)</SelectItem>
-                        <SelectItem value="ultra">Ultra (Slower, larger file)</SelectItem>
+                        <SelectItem value="low">{t('export.qualityLow', 'Low (Faster, smaller file)')}</SelectItem>
+                        <SelectItem value="medium">{t('export.qualityMedium', 'Medium')}</SelectItem>
+                        <SelectItem value="high">{t('export.qualityHigh', 'High (Recommended)')}</SelectItem>
+                        <SelectItem value="ultra">{t('export.qualityUltra', 'Ultra (Slower, larger file)')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="resolution">Resolution</Label>
+                    <Label htmlFor="resolution">{t('export.resolution', 'Resolution')}</Label>
                     <Select
                       value={`${settings.resolution.width}x${settings.resolution.height}`}
                       onValueChange={(value) => {
@@ -630,7 +632,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                       }}
                     >
                       <SelectTrigger id="resolution">
-                        <SelectValue placeholder="Select resolution" />
+                        <SelectValue placeholder={t('export.selectResolution', 'Select resolution')} />
                       </SelectTrigger>
                       <SelectContent>
                         {resolutionOptions.map((option) => (
@@ -651,18 +653,18 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 <Alert>
                   <Music className="h-4 w-4" />
                   <AlertDescription>
-                    Exports audio only. Video tracks will be ignored.
+                    {t('export.audioOnly', 'Exports audio only. Video tracks will be ignored.')}
                   </AlertDescription>
                 </Alert>
 
                 <div className="space-y-2">
-                  <Label htmlFor="audio-format">Format</Label>
+                  <Label htmlFor="audio-format">{t('export.format', 'Format')}</Label>
                   <Select
                     value={audioContainer}
                     onValueChange={(v) => setAudioContainer(v as ClientAudioContainer)}
                   >
                     <SelectTrigger id="audio-format">
-                      <SelectValue placeholder="Select format" />
+                      <SelectValue placeholder={t('export.selectFormat', 'Select format')} />
                     </SelectTrigger>
                     <SelectContent>
                       {getAudioContainerOptions().map((option) => (
@@ -676,19 +678,19 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="audio-quality">Quality</Label>
+                  <Label htmlFor="audio-quality">{t('export.quality', 'Quality')}</Label>
                   <Select
                     value={settings.quality}
                     onValueChange={(value) => setSettings({ ...settings, quality: value as ExportSettings['quality'] })}
                   >
                     <SelectTrigger id="audio-quality">
-                      <SelectValue placeholder="Select quality" />
+                      <SelectValue placeholder={t('export.selectQuality', 'Select quality')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">Low (96 kbps)</SelectItem>
-                      <SelectItem value="medium">Medium (192 kbps)</SelectItem>
-                      <SelectItem value="high">High (256 kbps)</SelectItem>
-                      <SelectItem value="ultra">Ultra (320 kbps)</SelectItem>
+                      <SelectItem value="low">{t('export.audioQualityLow', 'Low (96 kbps)')}</SelectItem>
+                      <SelectItem value="medium">{t('export.audioQualityMedium', 'Medium (192 kbps)')}</SelectItem>
+                      <SelectItem value="high">{t('export.audioQualityHigh', 'High (256 kbps)')}</SelectItem>
+                      <SelectItem value="ultra">{t('export.audioQualityUltra', 'Ultra (320 kbps)')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -697,13 +699,13 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={handleClose}>
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button
                 onClick={handleStartExport}
                 disabled={exportMode === 'video' && (!hasSupportedVideoPath || isCheckingVideoSupport)}
               >
-                {exportMode === 'audio' ? 'Export Audio' : 'Export Video'}
+                {exportMode === 'audio' ? t('export.exportAudio', 'Export Audio') : t('export.exportVideo', 'Export Video')}
               </Button>
             </div>
           </div>
@@ -719,10 +721,10 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 </div>
                 <div className="flex items-center justify-between text-sm gap-2">
                   <span className="text-muted-foreground truncate">
-                    {status === 'preparing' && 'Preparing...'}
-                    {status === 'rendering' && 'Rendering frames...'}
-                    {status === 'encoding' && 'Encoding...'}
-                    {status === 'finalizing' && 'Finalizing...'}
+                    {status === 'preparing' && t('export.preparing', 'Preparing...')}
+                    {status === 'rendering' && t('export.renderingFrames', 'Rendering frames...')}
+                    {status === 'encoding' && t('export.encoding', 'Encoding...')}
+                    {status === 'finalizing' && t('export.finalizing', 'Finalizing...')}
                   </span>
                   <span className="font-medium tabular-nums flex-shrink-0">{Math.round(progress)}%</span>
                 </div>
@@ -732,27 +734,27 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 {renderedFrames !== undefined && totalFrames !== undefined && (
                   <div className="flex items-center gap-2 text-sm">
                     <Film className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-muted-foreground">Frames:</span>
+                    <span className="text-muted-foreground">{t('export.frames', 'Frames:')}</span>
                     <span className="font-medium tabular-nums">{renderedFrames}/{totalFrames}</span>
                   </div>
                 )}
                 {elapsedSeconds > 0 && (
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-muted-foreground">Elapsed:</span>
+                    <span className="text-muted-foreground">{t('export.elapsed', 'Elapsed:')}</span>
                     <span className="font-medium tabular-nums">{formatTime(elapsedSeconds)}</span>
                   </div>
                 )}
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Keep this tab open while rendering. Longer videos may take several minutes.
+                {t('export.keepTabOpen', 'Keep this tab open while rendering. Longer videos may take several minutes.')}
               </p>
             </div>
 
             <div className="flex justify-end">
               <Button variant="outline" onClick={cancelExport}>
-                Cancel Export
+                {t('export.cancelExport', 'Cancel Export')}
               </Button>
             </div>
           </div>
@@ -768,7 +770,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
             <Alert className="border-green-900 bg-green-950">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
               <AlertDescription className="text-green-400">
-                {exportMode === 'audio' ? 'Audio' : 'Video'} exported successfully!
+                {exportMode === 'audio' ? t('export.audio', 'Audio') : t('export.video', 'Video')} {t('export.exportedSuccess', 'exported successfully!')}
               </AlertDescription>
             </Alert>
 
@@ -776,14 +778,14 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               {fileSize && (
                 <div className="flex items-center gap-2 text-sm">
                   <HardDrive className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">File size:</span>
+                  <span className="text-muted-foreground">{t('export.fileSize', 'File size:')}</span>
                   <span className="font-medium">{formatFileSize(fileSize)}</span>
                 </div>
               )}
               {elapsedSeconds > 0 && (
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Time taken:</span>
+                  <span className="text-muted-foreground">{t('export.timeTaken', 'Time taken:')}</span>
                   <span className="font-medium">{formatTime(elapsedSeconds)}</span>
                 </div>
               )}
@@ -791,11 +793,11 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={handleClose}>
-                Close
+                {t('export.close', 'Close')}
               </Button>
               <Button onClick={downloadVideo}>
                 <Download className="mr-2 h-4 w-4" />
-                Download
+                {t('export.download', 'Download')}
               </Button>
             </div>
           </div>
@@ -811,7 +813,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
             <div className="flex justify-end">
               <Button variant="outline" onClick={handleClose}>
-                Close
+                {t('export.close', 'Close')}
               </Button>
             </div>
           </div>
@@ -822,12 +824,12 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           <div className="space-y-4 py-4">
             <Alert>
               <X className="h-4 w-4" />
-              <AlertDescription>The export process was cancelled.</AlertDescription>
+              <AlertDescription>{t('export.cancelledDesc', 'The export was cancelled')}</AlertDescription>
             </Alert>
 
             <div className="flex justify-end">
               <Button variant="outline" onClick={handleClose}>
-                Close
+                {t('export.close', 'Close')}
               </Button>
             </div>
           </div>

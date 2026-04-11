@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+﻿import { useTranslation } from 'react-i18next';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Check, Loader2, Search, Type } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,8 @@ export function FontPicker({
   previewText,
   onValueChange,
 }: FontPickerProps) {
+  const { t } = useTranslation();
+
   const rootRef = useRef<HTMLDivElement | null>(null);
   const fontOptionRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [open, setOpen] = useState(false);
@@ -278,7 +281,7 @@ export function FontPicker({
           <div
             className="max-h-52 space-y-1 overflow-y-auto pr-1 [scrollbar-gutter:stable]"
             role="listbox"
-            aria-label="Font options"
+            aria-label={t('properties.fontoptions', 'Font options')}
           >
             {isLoading ? (
               <div className="flex items-center justify-center py-8 text-muted-foreground">

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo, memo } from 'react';
 import { Maximize2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,8 @@ const CORNER_LABELS: Record<CornerKey, string> = {
 export const CornerPinSection = memo(function CornerPinSection({
   items,
 }: CornerPinSectionProps) {
+  const { t } = useTranslation();
+
   const updateItem = useTimelineStore((s) => s.updateItem);
   const {
     isEditing: isCornerPinEditing,
@@ -90,7 +93,7 @@ export const CornerPinSection = memo(function CornerPinSection({
   if (!item || items.length > 1) return null;
 
   return (
-    <PropertySection title="Corner Pin" icon={Maximize2} defaultOpen={false}>
+    <PropertySection title={t('properties.cornerPin', 'Corner Pin')} icon={Maximize2} defaultOpen={false}>
       {/* Edit + Reset toolbar */}
       <div className="flex items-center gap-1 px-1 mb-2">
         <Button
@@ -109,7 +112,7 @@ export const CornerPinSection = memo(function CornerPinSection({
             size="icon"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleReset}
-            title="Reset corner pin"
+            title={t('properties.resetcornerpin', 'Reset corner pin')}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>

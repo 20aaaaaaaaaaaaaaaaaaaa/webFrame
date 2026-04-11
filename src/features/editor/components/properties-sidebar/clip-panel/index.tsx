@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useMemo, useCallback, useEffect, memo } from 'react';
 import { Film, Sparkles, Volume2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -58,6 +59,8 @@ function computeItemTypeInfo(items: TimelineItem[]) {
  * Memoized to prevent re-renders when props haven't changed.
  */
 export const ClipPanel = memo(function ClipPanel() {
+  const { t } = useTranslation();
+
   // Granular selectors with explicit types
   const clipInspectorTab = useEditorStore((s) => s.clipInspectorTab);
   const setClipInspectorTab = useEditorStore((s) => s.setClipInspectorTab);

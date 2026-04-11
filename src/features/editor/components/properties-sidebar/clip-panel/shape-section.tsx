@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo } from 'react';
 import { Shapes, RotateCcw, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MousePointer2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,8 @@ interface ShapeSectionProps {
  * Shape section - properties for shape items (shapeType, colors, stroke, etc.)
  */
 export function ShapeSection({ items }: ShapeSectionProps) {
+  const { t } = useTranslation();
+
   const updateItem = useTimelineStore((s) => s.updateItem);
   const { isEditing, editingItemId, penMode, startEditing, stopEditing } = useMaskEditorStore();
 
@@ -317,9 +320,9 @@ export function ShapeSection({ items }: ShapeSectionProps) {
   }
 
   return (
-    <PropertySection title="Shape" icon={Shapes} defaultOpen={true}>
+    <PropertySection title={t('properties.shape', 'Shape')} icon={Shapes} defaultOpen={true}>
       {/* Shape Type */}
-      <PropertyRow label="Type">
+      <PropertyRow label={t('properties.type', 'Type')}>
         <Select
           value={sharedValues.shapeType}
           onValueChange={handleShapeTypeChange}
@@ -338,7 +341,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
       </PropertyRow>
 
       {singlePathShape && (
-        <PropertyRow label="Path">
+        <PropertyRow label={t('properties.path', 'Path')}>
           <div className="flex items-center gap-2 w-full">
             <Button
               variant={isEditingPathShape ? 'default' : 'outline'}
@@ -364,7 +367,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
 
       {/* Fill Color */}
       <ColorPicker
-        label="Fill"
+        label={t('properties.fill', 'Fill')}
         color={sharedValues.fillColor ?? '#3b82f6'}
         onChange={handleFillColorChange}
         onLiveChange={handleFillColorLiveChange}
@@ -373,7 +376,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
       />
 
       {/* Stroke Width */}
-      <PropertyRow label="Stroke W.">
+      <PropertyRow label={t('properties.strokeW', 'Stroke W.')}>
         <NumberInput
           value={sharedValues.strokeWidth}
           onChange={handleStrokeWidthChange}
@@ -389,7 +392,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
       {/* Stroke Color - only show when stroke width > 0 */}
       {(sharedValues.strokeWidth === 'mixed' || sharedValues.strokeWidth > 0) && (
         <ColorPicker
-          label="Stroke"
+          label={t('properties.stroke', 'Stroke')}
           color={sharedValues.strokeColor || '#1e40af'}
           onChange={handleStrokeColorChange}
           onLiveChange={handleStrokeColorLiveChange}
@@ -400,7 +403,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
 
       {/* Corner Radius - shown for rectangle, triangle, star, polygon */}
       {showCornerRadius && (
-        <PropertyRow label="Radius">
+        <PropertyRow label={t('properties.radius', 'Radius')}>
           <NumberInput
             value={sharedValues.cornerRadius}
             onChange={handleCornerRadiusChange}
@@ -416,7 +419,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
 
       {/* Direction - shown for triangle only */}
       {showDirection && (
-        <PropertyRow label="Direction">
+        <PropertyRow label={t('properties.direction', 'Direction')}>
           <div className="flex gap-1">
             {DIRECTION_OPTIONS.map((dir) => (
               <Button
@@ -436,7 +439,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
 
       {/* Points - shown for star and polygon */}
       {showPoints && (
-        <PropertyRow label="Points">
+        <PropertyRow label={t('properties.points', 'Points')}>
           <NumberInput
             value={sharedValues.points}
             onChange={handlePointsChange}
@@ -451,7 +454,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
 
       {/* Inner Radius - shown for star only */}
       {showInnerRadius && (
-        <PropertyRow label="Inner R.">
+        <PropertyRow label={t('properties.innerR', 'Inner R.')}>
           <NumberInput
             value={sharedValues.innerRadius}
             onChange={handleInnerRadiusChange}
@@ -468,7 +471,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
       <div className="border-t border-border my-3" />
 
       {/* Use as Mask Toggle */}
-      <PropertyRow label="Use as Mask">
+      <PropertyRow label={t('properties.useasMask', 'Use as Mask')}>
         <Button
           variant={sharedValues.isMask === true ? 'secondary' : 'ghost'}
           size="sm"
@@ -484,7 +487,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
       {(sharedValues.isMask === true || sharedValues.isMask === 'mixed') && (
         <>
           {/* Mask Type */}
-          <PropertyRow label="Mask Type">
+          <PropertyRow label={t('properties.maskType', 'Mask Type')}>
             <Select
               value={sharedValues.maskType}
               onValueChange={handleMaskTypeChange}
@@ -502,7 +505,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
 
           {/* Feather - only show for alpha mask type */}
           {sharedValues.maskType === 'alpha' && (
-            <PropertyRow label="Feather">
+            <PropertyRow label={t('properties.feather', 'Feather')}>
               <div className="flex items-center gap-1 w-full">
                 <SliderInput
                   value={sharedValues.maskFeather}
@@ -519,7 +522,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
                   size="icon"
                   className="h-7 w-7 flex-shrink-0"
                   onClick={handleResetMaskFeather}
-                  title="Reset to 10px"
+                  title={t('properties.resetto10px', 'Reset to 10px')}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </Button>
@@ -528,7 +531,7 @@ export function ShapeSection({ items }: ShapeSectionProps) {
           )}
 
           {/* Invert Mask */}
-          <PropertyRow label="Invert">
+          <PropertyRow label={t('properties.invert', 'Invert')}>
             <Button
               variant={sharedValues.maskInvert === true ? 'secondary' : 'ghost'}
               size="sm"

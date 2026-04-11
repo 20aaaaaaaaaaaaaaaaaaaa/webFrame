@@ -28,6 +28,7 @@ interface AppSettings {
   // Interface
   editorDensity: EditorDensityPresetName;
   appLanguage: 'tr' | 'en';
+  appTheme: 'classic-dark' | 'studio-gray' | 'light-gray';
 
   // Performance
   maxUndoHistory: number;
@@ -75,6 +76,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   // Interface
   editorDensity: DEFAULT_EDITOR_DENSITY_PRESET,
   appLanguage: 'tr',
+  appTheme: 'studio-gray',
 
   // Performance
   maxUndoHistory: 50,

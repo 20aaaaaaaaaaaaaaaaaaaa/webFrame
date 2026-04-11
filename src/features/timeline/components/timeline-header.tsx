@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -88,6 +89,7 @@ export const TimelineHeader = memo(function TimelineHeader({
   isScopesPanelOpen,
   onToggleScopesPanel,
 }: TimelineHeaderProps) {
+  const { t } = useTranslation();
   const hotkeys = useResolvedHotkeys();
   const { zoomLevel, zoomIn, zoomOut, setZoom } = useTimelineZoom();
   const snapEnabled = useTimelineStore((s) => s.snapEnabled);
@@ -263,7 +265,7 @@ export const TimelineHeader = memo(function TimelineHeader({
       <div className="flex min-w-0 items-center gap-2.5">
         <h2 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground flex items-center gap-2">
           <Film className="w-3 h-3" />
-          Timeline
+          {t('timeline.title', 'Timeline')}
         </h2>
       </div>
 

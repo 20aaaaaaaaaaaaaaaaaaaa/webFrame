@@ -13,14 +13,14 @@
     /* Inspired by Premiere Pro & DaVinci Resolve */
 
     /* Base - Very dark, reduced eye strain */
-    --background: oklch(0.15 0 0);              /* #262626 - Main canvas */
+    --background: oklch(0.21 0 0);              /* Lighter Canvas */
     --foreground: oklch(0.95 0 0);              /* #f2f2f2 - Primary text */
 
     /* Panels - Layered depth */
-    --card: oklch(0.18 0 0);                    /* #2e2e2e - Panel backgrounds */
+    --card: oklch(0.24 0 0);                    /* Lighter panel surface */
     --card-foreground: oklch(0.92 0 0);         /* #ebebeb - Panel text */
 
-    --popover: oklch(0.16 0 0);                 /* #292929 - Dropdowns */
+    --popover: oklch(0.22 0 0);                 /* Dropdowns slightly over canvas */
     --popover-foreground: oklch(0.92 0 0);
 
     /* Primary - Dark green accent (playback, active states) */
@@ -28,15 +28,15 @@
     --primary-foreground: oklch(0.12 0 0);      /* Dark text on primary */
 
     /* Secondary - Subtle panel variation */
-    --secondary: oklch(0.22 0 0);               /* #383838 - Secondary surfaces */
+    --secondary: oklch(0.27 0 0);               /* Secondary surfaces */
     --secondary-foreground: oklch(0.88 0 0);
 
     /* Muted - Backgrounds and disabled states */
-    --muted: oklch(0.20 0 0);                   /* #333333 - Muted backgrounds */
+    --muted: oklch(0.25 0 0);                   /* Muted backgrounds */
     --muted-foreground: oklch(0.60 0 0);        /* #999999 - Muted text */
 
     /* Accent - Hover states and highlights */
-    --accent: oklch(0.24 0 0);                  /* #3d3d3d - Hover backgrounds */
+    --accent: oklch(0.29 0 0);                  /* Hover backgrounds */
     --accent-foreground: oklch(0.95 0 0);
 
     /* Destructive - Red for delete/errors */
@@ -44,26 +44,68 @@
     --destructive-foreground: oklch(0.98 0 0);
 
     /* Borders - Subtle separators */
-    --border: oklch(0.25 0 0);                  /* #404040 - Borders */
-    --input: oklch(0.24 0 0);                   /* #3d3d3d - Input borders */
+    --border: oklch(0.30 0 0);                  /* Borders */
+    --input: oklch(0.29 0 0);                   /* Input borders */
     --ring: oklch(0.50 0.14 150);                /* Dark green focus ring */
 
     /* Panel system - Layered depth */
-    --panel-bg: oklch(0.18 0 0);                /* #2e2e2e - Panels */
-    --panel-header: oklch(0.14 0 0);            /* #242424 - Panel headers */
-    --timeline-bg: oklch(0.12 0 0);             /* #1f1f1f - Timeline darker */
+    --panel-bg: oklch(0.24 0 0);                /* Panels */
+    --panel-header: oklch(0.20 0 0);            /* Panel headers */
+    --timeline-bg: oklch(0.18 0 0);             /* Timeline darker */
 
     /* Sidebar */
-    --sidebar: oklch(0.18 0 0);
+    --sidebar: oklch(0.24 0 0);
     --sidebar-foreground: oklch(0.92 0 0);
     --sidebar-primary: oklch(0.50 0.14 150);
     --sidebar-primary-foreground: oklch(0.12 0 0);
-    --sidebar-accent: oklch(0.22 0 0);
+    --sidebar-accent: oklch(0.27 0 0);
     --sidebar-accent-foreground: oklch(0.92 0 0);
-    --sidebar-border: oklch(0.25 0 0);
+    --sidebar-border: oklch(0.30 0 0);
     --sidebar-ring: oklch(0.50 0.14 150);
 
     --radius: 0.5rem;
+  }
+
+  [data-theme="classic-dark"] {
+    --background: oklch(0.12 0 0);
+    --foreground: oklch(0.95 0 0);
+    --card: oklch(0.16 0 0);
+    --card-foreground: oklch(0.92 0 0);
+    --popover: oklch(0.14 0 0);
+    --popover-foreground: oklch(0.92 0 0);
+    --secondary: oklch(0.19 0 0);
+    --muted: oklch(0.18 0 0);
+    --accent: oklch(0.22 0 0);
+    --border: oklch(0.23 0 0);
+    --input: oklch(0.22 0 0);
+    --panel-bg: oklch(0.16 0 0);
+    --panel-header: oklch(0.13 0 0);
+    --timeline-bg: oklch(0.09 0 0);
+    --sidebar: oklch(0.16 0 0);
+    --sidebar-accent: oklch(0.19 0 0);
+    --sidebar-border: oklch(0.23 0 0);
+  }
+
+  [data-theme="light-gray"] {
+    --background: oklch(0.35 0 0);
+    --foreground: oklch(0.98 0 0);
+    --card: oklch(0.40 0 0);
+    --card-foreground: oklch(0.95 0 0);
+    --popover: oklch(0.38 0 0);
+    --popover-foreground: oklch(0.95 0 0);
+    --secondary: oklch(0.45 0 0);
+    --muted: oklch(0.42 0 0);
+    --muted-foreground: oklch(0.85 0 0);
+    --accent: oklch(0.48 0 0);
+    --accent-foreground: oklch(1 0 0);
+    --border: oklch(0.48 0 0);
+    --input: oklch(0.46 0 0);
+    --panel-bg: oklch(0.40 0 0);
+    --panel-header: oklch(0.32 0 0);
+    --timeline-bg: oklch(0.28 0 0);
+    --sidebar: oklch(0.40 0 0);
+    --sidebar-accent: oklch(0.45 0 0);
+    --sidebar-border: oklch(0.48 0 0);
   }
 }
 

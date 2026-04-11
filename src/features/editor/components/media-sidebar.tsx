@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo, useRef, useEffect, useState, memo, Activity } from 'react';
 import {
   ChevronDown,
@@ -88,6 +89,8 @@ export const MediaSidebar = memo(function MediaSidebar({
   onExport,
   onExportBundle,
 }: MediaSidebarProps = {}) {
+  const { t } = useTranslation();
+
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
   const editorDensity = useSettingsStore((s) => s.editorDensity);
   const editorLayout = getEditorLayout(editorDensity);
@@ -357,12 +360,12 @@ export const MediaSidebar = memo(function MediaSidebar({
 
   // Category items for the vertical nav
   const categories = [
-    { id: 'media' as const, icon: Film, label: 'Media' },
-    { id: 'text' as const, icon: Type, label: 'Text' },
-    { id: 'shapes' as const, icon: Pentagon, label: 'Shapes' },
-    { id: 'effects' as const, icon: Layers, label: 'Effects' },
-    { id: 'transitions' as const, icon: Blend, label: 'Transitions' },
-    { id: 'ai' as const, icon: WandSparkles, label: 'AI' },
+    { id: 'media' as const, icon: Film, label: t('media.media', 'Media') },
+    { id: 'text' as const, icon: Type, label: t('media.text', 'Text') },
+    { id: 'shapes' as const, icon: Pentagon, label: t('media.shapes', 'Shapes') },
+    { id: 'effects' as const, icon: Layers, label: t('media.effects', 'Effects') },
+    { id: 'transitions' as const, icon: Blend, label: t('media.transitions', 'Transitions') },
+    { id: 'ai' as const, icon: WandSparkles, label: t('media.aI', 'AI') },
   ];
 
   const shouldSuppressGeneratedItemClick = useCallback(() => {
@@ -562,7 +565,7 @@ export const MediaSidebar = memo(function MediaSidebar({
             style={{ height: EDITOR_LAYOUT_CSS_VALUES.sidebarHeaderHeight }}
           >
             <span className="text-sm font-medium text-foreground">
-              {categories.find((c) => c.id === activeTab)?.label || (activeTab === 'project' ? 'Project' : '')}
+              {categories.find((c) => c.id === activeTab)?.label || (activeTab === 'project' ? t('media.project', 'Project') : '')}
             </span>
             <Button
               variant="ghost"
@@ -605,7 +608,7 @@ export const MediaSidebar = memo(function MediaSidebar({
             <div className="space-y-3">
               <button
                 draggable={true}
-                onDragStart={handleTemplateDragStart({ itemType: 'text', label: 'Text' })}
+                onDragStart={handleTemplateDragStart({ itemType: 'text', label: t('media.text', 'Text') })}
                 onDragEnd={handleTemplateDragEnd}
                 onClick={() => {
                   if (shouldSuppressGeneratedItemClick()) return;
@@ -628,7 +631,7 @@ export const MediaSidebar = memo(function MediaSidebar({
             <div className="grid grid-cols-3 gap-1.5">
                   <button
                     draggable={true}
-                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: 'Rectangle', shapeType: 'rectangle' })}
+                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: t('media.rectangle', 'Rectangle'), shapeType: 'rectangle' })}
                     onDragEnd={handleTemplateDragEnd}
                     onClick={() => {
                       if (shouldSuppressGeneratedItemClick()) return;
@@ -646,7 +649,7 @@ export const MediaSidebar = memo(function MediaSidebar({
 
                   <button
                     draggable={true}
-                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: 'Circle', shapeType: 'circle' })}
+                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: t('media.circle', 'Circle'), shapeType: 'circle' })}
                     onDragEnd={handleTemplateDragEnd}
                     onClick={() => {
                       if (shouldSuppressGeneratedItemClick()) return;
@@ -664,7 +667,7 @@ export const MediaSidebar = memo(function MediaSidebar({
 
                   <button
                     draggable={true}
-                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: 'Triangle', shapeType: 'triangle' })}
+                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: t('media.triangle', 'Triangle'), shapeType: 'triangle' })}
                     onDragEnd={handleTemplateDragEnd}
                     onClick={() => {
                       if (shouldSuppressGeneratedItemClick()) return;
@@ -682,7 +685,7 @@ export const MediaSidebar = memo(function MediaSidebar({
 
                   <button
                     draggable={true}
-                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: 'Ellipse', shapeType: 'ellipse' })}
+                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: t('media.ellipse', 'Ellipse'), shapeType: 'ellipse' })}
                     onDragEnd={handleTemplateDragEnd}
                     onClick={() => {
                       if (shouldSuppressGeneratedItemClick()) return;
@@ -700,7 +703,7 @@ export const MediaSidebar = memo(function MediaSidebar({
 
                   <button
                     draggable={true}
-                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: 'Star', shapeType: 'star' })}
+                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: t('media.star', 'Star'), shapeType: 'star' })}
                     onDragEnd={handleTemplateDragEnd}
                     onClick={() => {
                       if (shouldSuppressGeneratedItemClick()) return;
@@ -718,7 +721,7 @@ export const MediaSidebar = memo(function MediaSidebar({
 
                   <button
                     draggable={true}
-                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: 'Polygon', shapeType: 'polygon' })}
+                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: t('media.polygon', 'Polygon'), shapeType: 'polygon' })}
                     onDragEnd={handleTemplateDragEnd}
                     onClick={() => {
                       if (shouldSuppressGeneratedItemClick()) return;
@@ -736,7 +739,7 @@ export const MediaSidebar = memo(function MediaSidebar({
 
                   <button
                     draggable={true}
-                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: 'Heart', shapeType: 'heart' })}
+                    onDragStart={handleTemplateDragStart({ itemType: 'shape', label: t('media.heart', 'Heart'), shapeType: 'heart' })}
                     onDragEnd={handleTemplateDragEnd}
                     onClick={() => {
                       if (shouldSuppressGeneratedItemClick()) return;
@@ -773,7 +776,7 @@ export const MediaSidebar = memo(function MediaSidebar({
               {/* Blank Adjustment Layer */}
               <button
                 draggable={true}
-                onDragStart={handleTemplateDragStart({ itemType: 'adjustment', label: 'Adjustment Layer' })}
+                onDragStart={handleTemplateDragStart({ itemType: 'adjustment', label: t('media.adjustmentLayer', 'Adjustment Layer') })}
                 onDragEnd={handleTemplateDragEnd}
                 onClick={() => {
                   if (shouldSuppressGeneratedItemClick()) return;

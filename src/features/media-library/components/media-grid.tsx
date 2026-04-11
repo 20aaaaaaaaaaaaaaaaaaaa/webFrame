@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, memo } from 'react';
 import { Loader2, Upload, AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/logging/logger';
 
 const logger = createLogger('MediaGrid');
@@ -35,6 +36,7 @@ interface MediaGridProps {
 }
 
 export const MediaGrid = memo(function MediaGrid({ onMediaSelect, viewMode = 'grid', itemSize = 3, items }: MediaGridProps) {
+  const { t } = useTranslation();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [mediaIdToDelete, setMediaIdToDelete] = useState<string | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
@@ -160,8 +162,8 @@ export const MediaGrid = memo(function MediaGrid({ onMediaSelect, viewMode = 'gr
               <div className="absolute inset-0 w-12 h-12 rounded-full border-2 border-primary/20 animate-pulse" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-mono text-foreground tracking-wider mb-1">LOADING MEDIA LIBRARY</p>
-              <p className="text-xs text-muted-foreground font-mono">Initializing storage...</p>
+              <p className="text-sm font-mono text-foreground tracking-wider mb-1">{t('mediaLibrary.loadingTitle', 'LOADING MEDIA LIBRARY')}</p>
+              <p className="text-xs text-muted-foreground font-mono">{t('mediaLibrary.loadingSubtitle', 'Initializing storage...')}</p>
             </div>
           </div>
         </div>
@@ -174,9 +176,9 @@ export const MediaGrid = memo(function MediaGrid({ onMediaSelect, viewMode = 'gr
             >
               <Upload className="w-10 h-10 text-muted-foreground" />
             </div>
-            <p className="text-base font-bold text-foreground mb-2 tracking-wide">NO MEDIA FILES</p>
+            <p className="text-base font-bold text-foreground mb-2 tracking-wide">{t('mediaLibrary.emptyStateTitle', 'NO MEDIA FILES')}</p>
             <p className="text-sm text-muted-foreground font-light mb-3">
-              Drag and drop files or click to browse
+              {t('mediaLibrary.emptyStateSubtitle', 'Drag and drop files or click to browse')}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <span className="px-2 py-0.5 bg-secondary border border-border rounded text-xs font-mono text-muted-foreground">MP4</span>
@@ -218,20 +220,19 @@ export const MediaGrid = memo(function MediaGrid({ onMediaSelect, viewMode = 'gr
       <AlertDialog open={showDeleteDialog} onOpenChange={(open) => !open && handleCancelDelete()}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete media file?</AlertDialogTitle>
+            <AlertDialogTitle>{t('mediaLibrary.deleteDialog.title', 'Delete media file?')}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>
-                  Are you sure you want to delete "{filteredItems.find(m => m.id === mediaIdToDelete)?.fileName}"?
-                  This action cannot be undone.
+                  {t('mediaLibrary.deleteDialog.description', 'Are you sure you want to delete "{{fileName}}"? This action cannot be undone.', { fileName: filteredItems.find(m => m.id === mediaIdToDelete)?.fileName })}
                 </p>
                 {affectedMediaImpact.totalReferenceCount > 0 && (
                   <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md">
                     <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-yellow-600 dark:text-yellow-400">
-                      <p className="font-medium">Timeline clips will be removed</p>
+                      <p className="font-medium">{t('mediaLibrary.deleteDialog.warningTitle', 'Timeline clips will be removed')}</p>
                       <p className="text-xs mt-1 text-yellow-600/80 dark:text-yellow-400/80">
-                        {affectedMediaImpact.totalReferenceCount} clip{affectedMediaImpact.totalReferenceCount > 1 ? 's' : ''} across the timeline and nested compound clips reference this media and will also be deleted.
+                        {t('mediaLibrary.deleteDialog.warningDescription', '{{count}} clips across the timeline and nested compound clips reference this media and will also be deleted.', { count: affectedMediaImpact.totalReferenceCount })}
                       </p>
                     </div>
                   </div>
@@ -240,9 +241,9 @@ export const MediaGrid = memo(function MediaGrid({ onMediaSelect, viewMode = 'gr
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelDelete}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={handleCancelDelete}>{t('mediaLibrary.deleteDialog.cancel', 'Cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete{affectedMediaImpact.totalReferenceCount > 0 ? ` & ${affectedMediaImpact.totalReferenceCount} clip${affectedMediaImpact.totalReferenceCount > 1 ? 's' : ''}` : ''}
+              {affectedMediaImpact.totalReferenceCount > 0 ? t('mediaLibrary.deleteDialog.deleteActionWithDeps', 'Delete & {{count}} clips', { count: affectedMediaImpact.totalReferenceCount }) : t('mediaLibrary.deleteDialog.deleteAction', 'Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, memo, useCallback } from 'react';
 import { Search, Filter, SortAsc, Video, FileAudio, Image as ImageIcon, Trash2, Grid3x3, List, AlertTriangle, Info, X, FolderOpen, Link2Off, ChevronRight, Film, ArrowLeft, Zap, Loader2, Copy, Check, Upload } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/logging/logger';
 
 const logger = createLogger('MediaLibrary');
@@ -134,6 +135,7 @@ interface PendingLibraryDeletion {
 }
 
 export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaLibraryProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isFocusedRef = useRef(false);
@@ -565,10 +567,10 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               hover:bg-primary/90
               disabled:opacity-40 disabled:cursor-not-allowed
               transition-colors duration-150"
-            title="Import media files"
+            title={t('mediaLibrary.toolbar.import', 'Import')}
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            <span>Import</span>
+            <span>{t('mediaLibrary.toolbar.import', 'Import')}</span>
           </button>
 
           {/* Missing media indicator */}
@@ -579,10 +581,10 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 bg-destructive/10 border border-destructive/25 text-destructive
                 hover:bg-destructive/20 hover:border-destructive/40
                 transition-colors duration-150"
-              title="View missing media files"
+              title={t('mediaLibrary.toolbar.missing', 'View missing media files')}
             >
               <Link2Off className="w-3.5 h-3.5" />
-              <span>{currentProjectBrokenMediaIds.length} Missing</span>
+              <span>{t('mediaLibrary.toolbar.missing', '{{count}} Missing', { count: currentProjectBrokenMediaIds.length })}</span>
             </button>
           )}
 
@@ -595,7 +597,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               {/* Selection badge */}
               <div className="flex items-center gap-1 h-7 pl-2 pr-1 rounded-md bg-accent/50 border border-border">
                 <span className="tabular-nums">{selectedAssetCount}</span>
-                <span className="text-muted-foreground">selected</span>
+                <span className="text-muted-foreground">{t('mediaLibrary.toolbar.selected', 'selected')}</span>
                 <button
                   onClick={clearSelection}
                   className="ml-0.5 p-1 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
@@ -615,7 +617,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                   title="Generate proxies for selected"
                 >
                   <Zap className="w-3 h-3" />
-                  <span>Proxy ({selectedProxyEligibleCount})</span>
+                  <span>{t('mediaLibrary.toolbar.proxy', 'Proxy ({{count}})', { count: selectedProxyEligibleCount })}</span>
                 </button>
               )}
 
@@ -628,7 +630,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 title="Delete selected"
               >
                 <Trash2 className="w-3 h-3" />
-                <span>Delete</span>
+                <span>{t('mediaLibrary.toolbar.delete', 'Delete')}</span>
               </button>
             </>
           )}
@@ -710,7 +712,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
         <div className="relative group">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input
-            placeholder="Search media..."
+            placeholder={t('mediaLibrary.search.placeholder', 'Search media...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 h-7 bg-secondary border border-border focus:border-primary text-foreground placeholder:text-muted-foreground text-xs"
@@ -741,7 +743,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               >
                 <Filter className="w-2.5 h-2.5" />
                 <span className="hidden @[280px]:inline ml-1">
-                  {filterByType ? filterByType.toUpperCase() : 'ALL'}
+                  {filterByType ? t(`mediaLibrary.search.filter${filterByType.charAt(0).toUpperCase() + filterByType.slice(1)}`, filterByType.toUpperCase()) : t('mediaLibrary.search.filterAll', 'ALL')}
                 </span>
               </Button>
             </DropdownMenuTrigger>
@@ -750,7 +752,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 onClick={() => setFilterByType(null)}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
-                All Types
+                {t('mediaLibrary.search.filterAllTypes', 'All Types')}
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem
@@ -758,21 +760,21 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
                 <Video className="w-3 h-3 mr-2" />
-                Video
+                {t('mediaLibrary.search.filterVideo', 'Video')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setFilterByType('audio')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
                 <FileAudio className="w-3 h-3 mr-2" />
-                Audio
+                {t('mediaLibrary.search.filterAudio', 'Audio')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setFilterByType('image')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
                 <ImageIcon className="w-3 h-3 mr-2" />
-                Image
+                {t('mediaLibrary.search.filterImage', 'Image')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -787,7 +789,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
               >
                 <SortAsc className="w-2.5 h-2.5" />
                 <span className="hidden @[280px]:inline ml-1">
-                  {sortBy === 'name' ? 'NAME' : sortBy === 'date' ? 'DATE' : 'SIZE'}
+                  {sortBy === 'name' ? t('mediaLibrary.search.sortName', 'NAME') : sortBy === 'date' ? t('mediaLibrary.search.sortDate', 'DATE') : t('mediaLibrary.search.sortSize', 'SIZE')}
                 </span>
               </Button>
             </DropdownMenuTrigger>
@@ -796,19 +798,19 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 onClick={() => setSortBy('date')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
-                Date (Newest)
+                {t('mediaLibrary.search.sortDateNewest', 'Date (Newest)')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setSortBy('name')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
-                Name (A-Z)
+                {t('mediaLibrary.search.sortNameAZ', 'Name (A-Z)')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setSortBy('size')}
                 className="text-xs hover:bg-accent hover:text-accent-foreground"
               >
-                Size (Largest)
+                {t('mediaLibrary.search.sortSizeLargest', 'Size (Largest)')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -823,7 +825,7 @@ export const MediaLibrary = memo(function MediaLibrary({ onMediaSelect }: MediaL
                 value={[mediaItemSize]}
                 onValueChange={([v]) => setMediaItemSize(v ?? 3)}
                 className="flex-1 min-w-6 max-w-24"
-                aria-label="Grid item size"
+                aria-label={t('mediaLibrary.aria.itemSize', 'Grid item size')}
               />
             )}
             <div className="flex items-center border border-border rounded bg-secondary flex-shrink-0">

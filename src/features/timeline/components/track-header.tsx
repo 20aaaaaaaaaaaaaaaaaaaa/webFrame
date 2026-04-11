@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   ContextMenu,
@@ -71,6 +72,7 @@ export const TrackHeader = memo(function TrackHeader({
   onDeleteTrack,
   onDeleteEmptyTracks,
 }: TrackHeaderProps) {
+  const { t } = useTranslation();
   const itemCount = useItemsStore((s) => s.itemsByTrackId[track.id]?.length ?? 0);
   const trackKind = getTrackKind(track);
   const isTrackDisabled = trackKind === 'audio'
@@ -81,7 +83,7 @@ export const TrackHeader = memo(function TrackHeader({
 
   // Use track drag hook (visuals handled centrally by timeline.tsx via DOM)
   const { handleDragStart } = useTrackDrag(track);
-  const itemCountLabel = `${itemCount} ${itemCount === 1 ? 'Clip' : 'Clips'}`;
+  const itemCountLabel = `${itemCount} ${itemCount === 1 ? t('timeline.clip', 'Clip') : t('timeline.clips', 'Clips')}`;
 
   return (
     <ContextMenu>
@@ -197,22 +199,22 @@ export const TrackHeader = memo(function TrackHeader({
 
       <ContextMenuContent className="w-52">
         <ContextMenuItem onClick={onCloseGaps}>
-          Close All Gaps
+          {t('timeline.closeAllGaps', 'Close All Gaps')}
         </ContextMenuItem>
 
         <ContextMenuSeparator />
         <ContextMenuItem onClick={onAddVideoTrack}>
-          Add Video Track
+          {t('timeline.addVideoTrack', 'Add Video Track')}
         </ContextMenuItem>
         <ContextMenuItem onClick={onAddAudioTrack}>
-          Add Audio Track
+          {t('timeline.addAudioTrack', 'Add Audio Track')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem disabled={!canDeleteTrack} onClick={onDeleteTrack}>
-          Delete Track
+          {t('timeline.deleteTrack', 'Delete Track')}
         </ContextMenuItem>
         <ContextMenuItem disabled={!canDeleteEmptyTracks} onClick={onDeleteEmptyTracks}>
-          Delete Empty Tracks
+          {t('timeline.deleteEmptyTracks', 'Delete Empty Tracks')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

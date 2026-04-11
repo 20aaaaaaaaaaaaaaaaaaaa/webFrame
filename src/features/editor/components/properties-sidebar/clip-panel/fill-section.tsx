@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo, memo } from 'react';
 import { Droplet, RotateCcw } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -51,6 +52,8 @@ export const FillSection = memo(function FillSection({
   canvas,
   onTransformChange,
 }: FillSectionProps) {
+  const { t } = useTranslation();
+
   const itemIds = useMemo(() => items.map((item) => item.id), [items]);
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
 
@@ -261,9 +264,9 @@ export const FillSection = memo(function FillSection({
   }, [items, itemIds, onTransformChange, canvas]);
 
   return (
-    <PropertySection title="Composite" icon={Droplet} defaultOpen={true}>
+    <PropertySection title={t('properties.composite', 'Composite')} icon={Droplet} defaultOpen={true}>
       {/* Opacity */}
-      <PropertyRow label="Opacity">
+      <PropertyRow label={t('properties.opacity', 'Opacity')}>
         <div className="flex items-center gap-1 w-full">
           <SliderInput
             value={opacity}
@@ -285,7 +288,7 @@ export const FillSection = memo(function FillSection({
             size="icon"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleResetOpacity}
-            title="Reset to 100%"
+            title={t('properties.resetto100', 'Reset to 100%')}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>
@@ -293,7 +296,7 @@ export const FillSection = memo(function FillSection({
       </PropertyRow>
 
       {/* Blend Mode */}
-      <PropertyRow label="Blend">
+      <PropertyRow label={t('properties.blend', 'Blend')}>
         <Select
           value={blendMode === 'mixed' ? undefined : blendMode}
           onValueChange={handleBlendModeChange}
@@ -317,7 +320,7 @@ export const FillSection = memo(function FillSection({
       </PropertyRow>
 
       {/* Corner Radius */}
-      <PropertyRow label="Radius">
+      <PropertyRow label={t('properties.radius', 'Radius')}>
         <div className="flex items-center gap-1 w-full">
           <NumberInput
             value={cornerRadius}
@@ -339,7 +342,7 @@ export const FillSection = memo(function FillSection({
             size="icon"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleResetCornerRadius}
-            title="Reset to 0"
+            title={t('properties.resetto0', 'Reset to 0')}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>

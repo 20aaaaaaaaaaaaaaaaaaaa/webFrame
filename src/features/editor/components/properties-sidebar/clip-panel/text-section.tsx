@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Type,
@@ -154,6 +155,8 @@ export function TextSection({
   showEffectSection = true,
   showAnimationSection = true,
 }: TextSectionProps) {
+  const { t } = useTranslation();
+
   const updateItem = useTimelineStore((s) => s.updateItem);
   const addKeyframes = useTimelineStore((s) => s.addKeyframes);
 
@@ -625,9 +628,9 @@ export function TextSection({
   return (
     <>
       {showContentSection && (
-        <PropertySection title="Text" icon={Type} defaultOpen={true}>
+        <PropertySection title={t('properties.text', 'Text')} icon={Type} defaultOpen={true}>
           {/* Text Content */}
-          <PropertyRow label="Content">
+          <PropertyRow label={t('properties.content', 'Content')}>
             <Textarea
               value={sharedValues.text ?? ''}
               onChange={handleTextChange}
@@ -638,7 +641,7 @@ export function TextSection({
           </PropertyRow>
 
           {/* Font Family */}
-          <PropertyRow label="Font" className="items-start">
+          <PropertyRow label={t('properties.font', 'Font')} className="items-start">
             <FontPicker
               value={sharedValues.fontFamily}
               placeholder={sharedValues.fontFamily === undefined ? 'Mixed' : 'Select font'}
@@ -648,7 +651,7 @@ export function TextSection({
           </PropertyRow>
 
           {/* Font Size */}
-          <PropertyRow label="Size">
+          <PropertyRow label={t('properties.size', 'Size')}>
             <NumberInput
               value={sharedValues.fontSize}
               onChange={handleFontSizeChange}
@@ -662,7 +665,7 @@ export function TextSection({
           </PropertyRow>
 
           {/* Font Weight */}
-          <PropertyRow label="Weight">
+          <PropertyRow label={t('properties.weight', 'Weight')}>
             <Select
               value={sharedValues.fontWeight}
               onValueChange={handleFontWeightChange}
@@ -681,7 +684,7 @@ export function TextSection({
           </PropertyRow>
 
           {/* Font Style */}
-          <PropertyRow label="Style">
+          <PropertyRow label={t('properties.style', 'Style')}>
             <div className="flex gap-1">
               <Button
                 variant={isBoldActive ? 'secondary' : 'ghost'}
@@ -689,7 +692,7 @@ export function TextSection({
                 className="h-7 w-7"
                 onClick={handleBoldToggle}
                 title={canUseBold ? 'Bold' : 'Bold is not available for this font'}
-                aria-label="Bold"
+                aria-label={t('properties.bold', 'Bold')}
                 aria-pressed={isBoldActive}
                 disabled={!canUseBold}
               >
@@ -700,8 +703,8 @@ export function TextSection({
                 size="icon"
                 className="h-7 w-7"
                 onClick={handleItalicToggle}
-                title="Italic"
-                aria-label="Italic"
+                title={t('properties.italic', 'Italic')}
+                aria-label={t('properties.italic', 'Italic')}
                 aria-pressed={isItalicActive}
               >
                 <Italic className="w-3.5 h-3.5" />
@@ -711,8 +714,8 @@ export function TextSection({
                 size="icon"
                 className="h-7 w-7"
                 onClick={handleUnderlineToggle}
-                title="Underline"
-                aria-label="Underline"
+                title={t('properties.underline', 'Underline')}
+                aria-label={t('properties.underline', 'Underline')}
                 aria-pressed={isUnderlineActive}
               >
                 <Underline className="w-3.5 h-3.5" />
@@ -721,14 +724,14 @@ export function TextSection({
           </PropertyRow>
 
           {/* Text Align */}
-          <PropertyRow label="Align">
+          <PropertyRow label={t('properties.align', 'Align')}>
             <div className="flex gap-1">
               <Button
                 variant={sharedValues.textAlign === 'left' ? 'secondary' : 'ghost'}
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => handleTextAlignChange('left')}
-                title="Align Left"
+                title={t('properties.alignLeft', 'Align Left')}
               >
                 <AlignLeft className="w-3.5 h-3.5" />
               </Button>
@@ -737,7 +740,7 @@ export function TextSection({
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => handleTextAlignChange('center')}
-                title="Align Center"
+                title={t('properties.alignCenter', 'Align Center')}
               >
                 <AlignCenter className="w-3.5 h-3.5" />
               </Button>
@@ -746,7 +749,7 @@ export function TextSection({
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => handleTextAlignChange('right')}
-                title="Align Right"
+                title={t('properties.alignRight', 'Align Right')}
               >
                 <AlignRight className="w-3.5 h-3.5" />
               </Button>
@@ -756,7 +759,7 @@ export function TextSection({
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => handleVerticalAlignChange('top')}
-                title="Align Top"
+                title={t('properties.alignTop', 'Align Top')}
               >
                 <AlignStartHorizontal className="w-3.5 h-3.5" />
               </Button>
@@ -765,7 +768,7 @@ export function TextSection({
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => handleVerticalAlignChange('middle')}
-                title="Align Middle"
+                title={t('properties.alignMiddle', 'Align Middle')}
               >
                 <AlignCenterHorizontal className="w-3.5 h-3.5" />
               </Button>
@@ -774,7 +777,7 @@ export function TextSection({
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => handleVerticalAlignChange('bottom')}
-                title="Align Bottom"
+                title={t('properties.alignBottom', 'Align Bottom')}
               >
                 <AlignEndHorizontal className="w-3.5 h-3.5" />
               </Button>
@@ -783,7 +786,7 @@ export function TextSection({
 
           {/* Text Color */}
           <ColorPicker
-            label="Color"
+            label={t('properties.color', 'Color')}
             color={sharedValues.color ?? '#ffffff'}
             onChange={handleColorChange}
             onLiveChange={handleColorLiveChange}
@@ -792,7 +795,7 @@ export function TextSection({
           />
 
           {/* Letter Spacing */}
-          <PropertyRow label="Spacing">
+          <PropertyRow label={t('properties.spacing', 'Spacing')}>
             <NumberInput
               value={sharedValues.letterSpacing}
               onChange={handleLetterSpacingChange}
@@ -806,7 +809,7 @@ export function TextSection({
           </PropertyRow>
 
           {/* Line Height */}
-          <PropertyRow label="Line H.">
+          <PropertyRow label={t('properties.lineH', 'Line H.')}>
             <NumberInput
               value={sharedValues.lineHeight}
               onChange={handleLineHeightChange}
@@ -822,8 +825,8 @@ export function TextSection({
       )}
 
       {showEffectSection && (
-        <PropertySection title="Effects" icon={Sparkles} defaultOpen={true}>
-          <PropertyRow label="Presets" className="items-start">
+        <PropertySection title={t('properties.effects', 'Effects')} icon={Sparkles} defaultOpen={true}>
+          <PropertyRow label={t('properties.presets', 'Presets')} className="items-start">
             <div className="grid w-full grid-cols-2 gap-1.5">
               {TEXT_EFFECT_PRESETS.map((preset) => (
                 <Button
@@ -840,7 +843,7 @@ export function TextSection({
           </PropertyRow>
 
           <ColorPicker
-            label="Shadow"
+            label={t('properties.shadow', 'Shadow')}
             color={sharedValues.shadowColor || '#000000'}
             onChange={handleShadowColorChange}
             onLiveChange={handleShadowColorLiveChange}
@@ -848,7 +851,7 @@ export function TextSection({
             defaultColor="#000000"
           />
 
-          <PropertyRow label="Shadow X">
+          <PropertyRow label={t('properties.shadowX', 'Shadow X')}>
             <NumberInput
               value={shadowOffsetX}
               onChange={handleShadowOffsetXChange}
@@ -861,7 +864,7 @@ export function TextSection({
             />
           </PropertyRow>
 
-          <PropertyRow label="Shadow Y">
+          <PropertyRow label={t('properties.shadowY', 'Shadow Y')}>
             <NumberInput
               value={shadowOffsetY}
               onChange={handleShadowOffsetYChange}
@@ -874,7 +877,7 @@ export function TextSection({
             />
           </PropertyRow>
 
-          <PropertyRow label="Shadow B.">
+          <PropertyRow label={t('properties.shadowB', 'Shadow B.')}>
             <NumberInput
               value={shadowBlur}
               onChange={handleShadowBlurChange}
@@ -887,7 +890,7 @@ export function TextSection({
             />
           </PropertyRow>
 
-          <PropertyRow label="Stroke W.">
+          <PropertyRow label={t('properties.strokeW', 'Stroke W.')}>
             <NumberInput
               value={strokeWidth}
               onChange={handleStrokeWidthChange}
@@ -902,7 +905,7 @@ export function TextSection({
 
           {(strokeWidth === 'mixed' || strokeWidth > 0) && (
             <ColorPicker
-              label="Stroke"
+              label={t('properties.stroke', 'Stroke')}
               color={sharedValues.strokeColor || '#111827'}
               onChange={handleStrokeColorChange}
               onLiveChange={handleStrokeColorLiveChange}
@@ -914,8 +917,8 @@ export function TextSection({
       )}
 
       {showAnimationSection && (
-        <PropertySection title="Animation" icon={Sparkles} defaultOpen={true}>
-          <PropertyRow label="Intro" className="items-start">
+        <PropertySection title={t('properties.animation', 'Animation')} icon={Sparkles} defaultOpen={true}>
+          <PropertyRow label={t('properties.intro', 'Intro')} className="items-start">
             <div className="grid w-full grid-cols-4 gap-1.5">
               {TEXT_ANIMATION_PRESETS.map((preset) => (
                 <Button
@@ -930,7 +933,7 @@ export function TextSection({
               ))}
             </div>
           </PropertyRow>
-          <PropertyRow label="Outro" className="items-start">
+          <PropertyRow label={t('properties.outro', 'Outro')} className="items-start">
             <div className="grid w-full grid-cols-4 gap-1.5">
               {TEXT_ANIMATION_PRESETS.map((preset) => (
                 <Button

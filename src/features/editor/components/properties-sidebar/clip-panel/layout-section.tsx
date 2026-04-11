@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo, memo } from 'react';
 import { Move, RotateCcw, Link2, Link2Off } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -54,6 +55,8 @@ export const LayoutSection = memo(function LayoutSection({
   aspectLocked,
   onAspectLockToggle,
 }: LayoutSectionProps) {
+  const { t } = useTranslation();
+
   const itemIds = useMemo(() => items.map((item) => item.id), [items]);
   const itemIdSet = useMemo(() => new Set(itemIds), [itemIds]);
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -495,9 +498,9 @@ export const LayoutSection = memo(function LayoutSection({
   }, [items, onTransformChange, canvas]);
 
   return (
-    <PropertySection title="Transform" icon={Move} defaultOpen={true}>
+    <PropertySection title={t('properties.transform', 'Transform')} icon={Move} defaultOpen={true}>
       {/* Position */}
-      <PropertyRow label="Position">
+      <PropertyRow label={t('properties.position', 'Position')}>
         <div className="flex items-start gap-1 w-full">
           <div className="grid grid-cols-2 gap-1 flex-1">
             <div className="flex items-center gap-0.5">
@@ -505,7 +508,7 @@ export const LayoutSection = memo(function LayoutSection({
                 value={x}
                 onChange={handleXChange}
                 onLiveChange={handleXLiveChange}
-                label="X"
+                label={t('properties.x', 'X')}
                 unit="px"
                 step={1}
                 className="flex-1"
@@ -521,7 +524,7 @@ export const LayoutSection = memo(function LayoutSection({
                 value={y}
                 onChange={handleYChange}
                 onLiveChange={handleYLiveChange}
-                label="Y"
+                label={t('properties.y', 'Y')}
                 unit="px"
                 step={1}
                 className="flex-1"
@@ -538,7 +541,7 @@ export const LayoutSection = memo(function LayoutSection({
             size="icon"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleResetPosition}
-            title="Reset to center"
+            title={t('properties.resettocenter', 'Reset to center')}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>
@@ -546,13 +549,13 @@ export const LayoutSection = memo(function LayoutSection({
       </PropertyRow>
 
       {/* Dimensions */}
-      <PropertyRow label="Size">
+      <PropertyRow label={t('properties.size', 'Size')}>
         <div className="flex items-center gap-1 w-full">
           <NumberInput
             value={width}
             onChange={handleWidthChange}
             onLiveChange={handleWidthLiveChange}
-            label="W"
+            label={t('properties.w', 'W')}
             unit="px"
             min={1}
             max={7680}
@@ -581,7 +584,7 @@ export const LayoutSection = memo(function LayoutSection({
             value={height}
             onChange={handleHeightChange}
             onLiveChange={handleHeightLiveChange}
-            label="H"
+            label={t('properties.h', 'H')}
             unit="px"
             min={1}
             max={7680}
@@ -598,7 +601,7 @@ export const LayoutSection = memo(function LayoutSection({
             size="icon"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleResetScale}
-            title="Reset to original size"
+            title={t('properties.resettooriginalsize', 'Reset to original size')}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>
@@ -606,7 +609,7 @@ export const LayoutSection = memo(function LayoutSection({
       </PropertyRow>
 
       {/* Rotation */}
-      <PropertyRow label="Rotation">
+      <PropertyRow label={t('properties.rotation', 'Rotation')}>
         <div className="flex items-center gap-1 w-full">
           <SliderInput
             value={rotation}
@@ -628,7 +631,7 @@ export const LayoutSection = memo(function LayoutSection({
             size="icon"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleResetRotation}
-            title="Reset rotation"
+            title={t('properties.resetrotation', 'Reset rotation')}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>

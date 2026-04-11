@@ -209,6 +209,7 @@ async function regenerateProjectThumbnails(
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const { t } = useTranslation();
   const appLanguage = useSettingsStore((s) => s.appLanguage);
+  const appTheme = useSettingsStore((s) => s.appTheme);
   const snapEnabled = useSettingsStore((s) => s.snapEnabled);
   const editorDensity = useSettingsStore((s) => s.editorDensity);
   const showWaveforms = useSettingsStore((s) => s.showWaveforms);
@@ -282,7 +283,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 sm:top-16 sm:max-h-[calc(100vh-4rem)] sm:translate-y-0 sm:origin-top">
         <DialogHeader className="flex flex-row items-center justify-between border-b px-6 py-4 pr-14">
-          <DialogTitle>Editor Settings</DialogTitle>
+          <DialogTitle>{t('settings.title', 'Editor Settings')}</DialogTitle>
           <Button variant="ghost" size="sm" onClick={resetToDefaults} className="h-8 shrink-0 gap-1.5">
             <RotateCcw className="w-3.5 h-3.5" />
             Reset
@@ -306,7 +307,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   )}
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0" />
-                  {section.label}
+                  {t(`settings.${section.id}`, section.label)}
                 </button>
               );
             })}
@@ -337,7 +338,27 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   </div>
                   <Separator className="bg-white/8 my-3" />
                   <div className="space-y-1.5">
-                    <Label className="text-sm">Editor Density</Label>
+                    <Label className="text-sm">{t('settings.appTheme', 'App Theme')}</Label>
+                    <Select
+                      value={appTheme}
+                      onValueChange={(value) => setSetting('appTheme', value as 'classic-dark' | 'studio-gray' | 'light-gray')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="classic-dark">{t('settings.themeClassicDark', 'Classic Dark')}</SelectItem>
+                        <SelectItem value="studio-gray">{t('settings.themeStudioGray', 'Studio Gray')}</SelectItem>
+                        <SelectItem value="light-gray">{t('settings.themeLightGray', 'Light Gray')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {t('settings.appThemeDesc', 'Adjust the application\'s overall interface contrast.')}
+                    </p>
+                  </div>
+                  <Separator className="bg-white/8 my-3" />
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">{t('settings.editorDensity', 'Editor Density')}</Label>
                     <Select
                       value={editorDensity}
                       onValueChange={(value) => setSetting('editorDensity', value as typeof editorDensity)}
@@ -354,11 +375,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Compact fits more of the editor into a 1080p screen. Default restores the roomier layout.
+                      {t('settings.editorDensityDesc', 'Compact fits more of the editor into a 1080p screen. Default restores the roomier layout.')}
                     </p>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">Auto-save</Label>
+                    <Label className="text-sm">{t('settings.autoSaveInterval', 'Auto-save')}</Label>
                     <Switch
                       checked={autoSaveInterval > 0}
                       onCheckedChange={(v) => setSetting('autoSaveInterval', v ? 5 : 0)}
@@ -366,7 +387,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   </div>
                   {autoSaveInterval > 0 && (
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm text-muted-foreground">Interval</Label>
+                      <Label className="text-sm text-muted-foreground">{t('settings.interval', 'Interval')}</Label>
                       <div className="w-32 flex items-center gap-2">
                         <Slider
                           value={[autoSaveInterval]}
@@ -380,7 +401,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                     </div>
                   )}
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">Undo History Depth</Label>
+                    <Label className="text-sm">{t('settings.undoHistory', 'Undo History Depth')}</Label>
                     <div className="w-32 flex items-center gap-2">
                       <Slider
                         value={[maxUndoHistory]}
@@ -399,17 +420,17 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-sm">Snap by Default</Label>
-                      <p className="text-xs text-muted-foreground">Sets the initial snap state when a project opens.</p>
+                      <Label className="text-sm">{t('settings.snapToGrid', 'Snap by Default')}</Label>
+                      <p className="text-xs text-muted-foreground">{t('settings.snapToGridDesc', 'Sets the initial snap state when a project opens.')}</p>
                     </div>
                     <Switch checked={snapEnabled} onCheckedChange={(v) => setSetting('snapEnabled', v)} />
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">Show Waveforms</Label>
+                    <Label className="text-sm">{t('settings.showWaveforms', 'Show Waveforms')}</Label>
                     <Switch checked={showWaveforms} onCheckedChange={(v) => setSetting('showWaveforms', v)} />
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">Show Filmstrips</Label>
+                    <Label className="text-sm">{t('settings.showFilmstrips', 'Show Filmstrips')}</Label>
                     <Switch checked={showFilmstrips} onCheckedChange={(v) => setSetting('showFilmstrips', v)} />
                   </div>
                 </div>
@@ -418,7 +439,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               {activeSection === 'whisper' && (
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label className="text-sm">Default Model</Label>
+                    <Label className="text-sm">{t('settings.defaultModel', 'Default Model')}</Label>
                     <Select
                       value={defaultWhisperModel}
                       onValueChange={(value) =>
@@ -437,12 +458,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Used when transcription starts without an explicit model override.
+                      {t('settings.defaultModelDesc', 'Used when transcription starts without an explicit model override.')}
                     </p>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-sm">Default Quantization</Label>
+                    <Label className="text-sm">{t('settings.defaultQuantization', 'Default Quantization')}</Label>
                     <Select
                       value={defaultWhisperQuantization}
                       onValueChange={(value) =>
@@ -461,24 +482,24 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Pick based on memory first. {defaultWhisperQuantizationOption.description}
+                      {t('settings.defaultQuantizationDesc', 'Pick based on memory first.')} {defaultWhisperQuantizationOption.description}
                     </p>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-sm">Default Language</Label>
+                    <Label className="text-sm">{t('settings.defaultLanguage', 'Default Language')}</Label>
                     <Combobox
                       value={defaultWhisperLanguageValue}
                       onValueChange={(value) =>
                         setSetting('defaultWhisperLanguage', getWhisperLanguageSettingValue(value))
                       }
                       options={WHISPER_LANGUAGE_OPTIONS}
-                      placeholder="Auto-detect"
-                      searchPlaceholder="Search languages..."
-                      emptyMessage="No languages match that search."
+                      placeholder={t('settings.autoDetect', 'Auto-detect')}
+                      searchPlaceholder={t('settings.searchLanguages', 'Search languages...')}
+                      emptyMessage={t('settings.noLanguages', 'No languages match that search.')}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Choose Auto-detect to infer the language, or lock transcription to a known language for faster startup.
+                      {t('settings.defaultLanguageDesc', 'Choose Auto-detect to infer the language, or lock transcription to a known language for faster startup.')}
                     </p>
                   </div>
 
@@ -490,9 +511,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-sm">Clear Project Cache</Label>
+                      <Label className="text-sm">{t('settings.clearCache', 'Clear Project Cache')}</Label>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Waveforms, filmstrips, GIF frames, decoded audio
+                        {t('settings.clearCacheDesc', 'Waveforms, filmstrips, GIF frames, decoded audio')}
                       </p>
                     </div>
                     <Button
@@ -505,14 +526,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       {clearState === 'clearing' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       {clearState === 'done' && <Check className="w-3.5 h-3.5" />}
                       {clearState === 'idle' && <Trash2 className="w-3.5 h-3.5" />}
-                      {clearState === 'clearing' ? 'Clearing...' : clearState === 'done' ? 'Cleared' : 'Clear'}
+                      {clearState === 'clearing' ? t('settings.clearing', 'Clearing...') : clearState === 'done' ? t('settings.cleared', 'Cleared') : t('settings.clear', 'Clear')}
                     </Button>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-sm">Regenerate Thumbnails</Label>
+                      <Label className="text-sm">{t('settings.regenThumbnails', 'Regenerate Thumbnails')}</Label>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Re-create media library thumbnails for this project
+                        {t('settings.regenThumbnailsDesc', 'Re-create media library thumbnails for this project')}
                       </p>
                     </div>
                     <Button
@@ -525,14 +546,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       {regenState === 'working' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       {regenState === 'done' && <Check className="w-3.5 h-3.5" />}
                       {regenState === 'idle' && <ImagePlus className="w-3.5 h-3.5" />}
-                      {regenState === 'working' ? regenProgress : regenState === 'done' ? 'Done' : 'Regenerate'}
+                      {regenState === 'working' ? regenProgress : regenState === 'done' ? t('settings.done', 'Done') : t('settings.regenerate', 'Regenerate')}
                     </Button>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-sm">Delete Proxies</Label>
+                      <Label className="text-sm">{t('settings.deleteProxies', 'Delete Proxies')}</Label>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Remove generated proxy videos for this project
+                        {t('settings.deleteProxiesDesc', 'Remove generated proxy videos for this project')}
                       </p>
                     </div>
                     <Button
@@ -545,7 +566,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       {proxyState === 'clearing' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       {proxyState === 'done' && <Check className="w-3.5 h-3.5" />}
                       {proxyState === 'idle' && <Film className="w-3.5 h-3.5" />}
-                      {proxyState === 'clearing' ? 'Deleting...' : proxyState === 'done' ? 'Deleted' : 'Delete'}
+                      {proxyState === 'clearing' ? t('settings.deleting', 'Deleting...') : proxyState === 'done' ? t('settings.deleted', 'Deleted') : t('common.delete', 'Delete')}
                     </Button>
                   </div>
                   <Separator className="bg-white/8" />
@@ -560,16 +581,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear project cache?</AlertDialogTitle>
+            <AlertDialogTitle>{t('settings.clearCacheConfirm', 'Clear project cache?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete cached waveforms, filmstrips, GIF frames, and decoded audio
-              for the current project ({mediaItems.length} media items).
-              These will be regenerated automatically when needed. Your project data,
-              media files, thumbnails, and proxies will not be affected.
+              {t('settings.clearCacheDetailedDesc', 'This will delete cached waveforms, filmstrips, GIF frames, and decoded audio for the current project ({{count}} media items). These will be regenerated automatically when needed. Your project data, media files, thumbnails, and proxies will not be affected.', { count: mediaItems.length })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel', 'Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 void handleClearCache();
