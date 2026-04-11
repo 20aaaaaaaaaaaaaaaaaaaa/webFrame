@@ -2,6 +2,10 @@
 
 **webFrame** is a customized professional browser-based video editor, focused on global accessibility and enhanced ergonomics.
 
+
+https://github.com/user-attachments/assets/9751207b-1190-4032-b3c4-a456a9f9cfd8
+
+
 ## 🚀 Our Innovations & Enhancements
 
 We have transformed the original engine into a global-ready professional tool. Our key additions include:
