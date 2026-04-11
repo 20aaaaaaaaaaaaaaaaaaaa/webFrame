@@ -15,11 +15,13 @@ We built a comprehensive localization infrastructure from the ground up:
 ### 🎨 Professional Design System & Themes
 A custom-engineered theme system designed for production environments:
 - **OKLCH Color Model**: Ensures perfect contrast and visual consistency across all panels.
-- **Three Professional Themes**: 
-  - **Classic Dark**: For high-focus, low-light editing.
-  - **Studio Gray**: An ergonomic balance for standard studio lighting.
-  - **Light Gray**: A bright, modern look for day-work.
+- **Three Professional Themes**: Classic Dark, Studio Gray, and Light Gray.
 - **Synchronized UI State**: Theme changes propagate instantly across all dockable panels.
+
+### 🍱 Dynamic Dockable Workspace
+webFrame features a professional-grade flexible interface:
+- **Swappable Panels**: All major UI components (Timeline, Media Library, Properties, Preview) are fully dockable and can be rearranged to fit your specific workflow.
+- **Persistent Layouts**: Your custom window arrangement is saved locally, ensuring your workspace is exactly how you left it when you return.
 
 ### 🛠️ Workflow Enhancements
 - **Localized Export Dialog**: A redesigned, user-friendly export interface in the user's native language.
