@@ -1,12 +1,9 @@
-import { createFileRoute, Navigate } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/projects/$projectId')({
-  component: ProjectRouteRedirect,
+  beforeLoad: ({ params }) => {
+    // Redirect to the editor — project settings are handled via the edit dialog on /projects/
+    throw redirect({ to: '/editor/$projectId', params: { projectId: params.projectId } });
+  },
+  component: () => null,
 });
-
-function ProjectRouteRedirect() {
-  const { projectId } = Route.useParams();
-
-  // Project settings are handled via the edit dialog on /projects/.
-  return <Navigate to="/editor/$projectId" params={{ projectId }} replace />;
-}

@@ -7,7 +7,7 @@ export const Route = createLazyFileRoute('/editor/$projectId')({
 
 function EditorPage() {
   const { projectId } = Route.useParams();
-  const { project, migration } = Route.useLoaderData();
+  const { project } = Route.useLoaderData();
 
-  return <Editor projectId={projectId} project={project} migration={migration} />;
+  return <Editor projectId={projectId} project={project} />;
 }
