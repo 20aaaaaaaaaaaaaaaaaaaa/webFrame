@@ -13,14 +13,6 @@
 
 import { useSyncExternalStore, useRef, useCallback } from 'react';
 import type { TimelineState, TimelineActions } from '../types';
-import type { ItemKeyframes } from '@/types/keyframe';
-import type { TimelineItem, TimelineTrack } from '@/types/timeline';
-import type { Transition } from '@/types/transition';
-
-import { createLogger } from '@/shared/logging/logger';
-import { DEFAULT_TRACK_HEIGHT } from '../constants';
-
-const logger = createLogger('TimelineStore');
 
 // Domain stores
 import { useItemsStore } from './items-store';
@@ -29,435 +21,10 @@ import { useKeyframesStore } from './keyframes-store';
 import { useMarkersStore } from './markers-store';
 import { useTimelineSettingsStore } from './timeline-settings-store';
 import { useTimelineCommandStore } from './timeline-command-store';
-import { useCompositionsStore } from './compositions-store';
-import { useCompositionNavigationStore } from './composition-navigation-store';
 
 // Actions
 import * as timelineActions from './timeline-actions';
-
-// External dependencies for save/load
-import { getProject, updateProject, saveThumbnail } from '@/infrastructure/storage/indexeddb';
-import { usePlaybackStore } from '@/shared/state/playback';
-import { useZoomStore } from './zoom-store';
-import type { ProjectTimeline } from '@/types/project';
-import {
-  renderSingleFrame,
-  convertTimelineToComposition,
-} from '@/features/timeline/deps/export-contract';
-import { resolveMediaUrls } from '@/features/timeline/deps/media-library-resolver';
-import { validateMediaReferences } from '@/features/timeline/utils/media-validation';
-import { useMediaLibraryStore } from '@/features/timeline/deps/media-library-store';
-import { migrateProject, CURRENT_SCHEMA_VERSION } from '@/domain/projects/migrations';
-
-
-/**
- * Progressive downscale a canvas to a JPEG blob.
- * Halves dimensions repeatedly to avoid aliasing with high-frequency effects.
- */
-async function scaleCanvasToBlob(
-  source: OffscreenCanvas | HTMLCanvasElement,
-  targetW: number,
-  targetH: number,
-  quality: number,
-): Promise<Blob> {
-  let srcW = source.width;
-  let srcH = source.height;
-  let current: OffscreenCanvas | HTMLCanvasElement = source;
-
-  while (srcW > targetW * 2 || srcH > targetH * 2) {
-    const nextW = Math.max(Math.ceil(srcW / 2), targetW);
-    const nextH = Math.max(Math.ceil(srcH / 2), targetH);
-    const step = new OffscreenCanvas(nextW, nextH);
-    const ctx = step.getContext('2d')!;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(current, 0, 0, nextW, nextH);
-    current = step;
-    srcW = nextW;
-    srcH = nextH;
-  }
-
-  const out = new OffscreenCanvas(targetW, targetH);
-  const outCtx = out.getContext('2d')!;
-  outCtx.imageSmoothingQuality = 'high';
-  outCtx.drawImage(current, 0, 0, targetW, targetH);
-  return out.convertToBlob({ type: 'image/jpeg', quality });
-}
-
-/**
- * Save timeline to project in IndexedDB.
- */
-async function saveTimeline(projectId: string): Promise<void> {
-  // If currently editing a sub-composition, navigate back to root to save
-  // the main timeline data, then re-enter after save completes.
-  const navStore = useCompositionNavigationStore.getState();
-  const previousCompositionId = navStore.activeCompositionId;
-  const previousLabel = previousCompositionId
-    ? navStore.breadcrumbs.find((b) => b.compositionId === previousCompositionId)?.label ?? ''
-    : '';
-  if (previousCompositionId !== null) {
-    navStore.resetToRoot();
-  }
-
-  // Read directly from domain stores
-  const itemsState = useItemsStore.getState();
-  const transitionsState = useTransitionsStore.getState();
-  const keyframesState = useKeyframesStore.getState();
-  const markersState = useMarkersStore.getState();
-  const currentFrame = usePlaybackStore.getState().currentFrame;
-  const zoomLevel = useZoomStore.getState().level;
-
-  try {
-    const project = await getProject(projectId);
-    if (!project) {
-      throw new Error(`Project not found: ${projectId}`);
-    }
-
-    const settingsState = useTimelineSettingsStore.getState();
-
-    // Build timeline data (fps is stored in project.metadata, not timeline)
-    const timeline: ProjectTimeline = {
-      tracks: itemsState.tracks as ProjectTimeline['tracks'],
-      items: itemsState.items as ProjectTimeline['items'],
-      currentFrame,
-      zoomLevel,
-      scrollPosition: settingsState.scrollPosition,
-      ...(markersState.inPoint !== null && { inPoint: markersState.inPoint }),
-      ...(markersState.outPoint !== null && { outPoint: markersState.outPoint }),
-      ...(markersState.markers.length > 0 && {
-        markers: markersState.markers.map((m) => ({
-          id: m.id,
-          frame: m.frame,
-          color: m.color,
-          ...(m.label && { label: m.label }),
-        })),
-      }),
-      ...(transitionsState.transitions.length > 0 && {
-        transitions: transitionsState.transitions.map((t) => ({
-          id: t.id,
-          type: t.type,
-          leftClipId: t.leftClipId,
-          rightClipId: t.rightClipId,
-          trackId: t.trackId,
-          durationInFrames: t.durationInFrames,
-          presentation: t.presentation,
-          ...(t.timing && { timing: t.timing }),
-          ...(t.direction && { direction: t.direction }),
-        })),
-      }),
-      ...(keyframesState.keyframes.length > 0 && {
-        keyframes: keyframesState.keyframes.map((ik) => ({
-          itemId: ik.itemId,
-          properties: ik.properties.map((pk) => ({
-            property: pk.property,
-            keyframes: pk.keyframes.map((k) => ({
-              id: k.id,
-              frame: k.frame,
-              value: k.value,
-              easing: k.easing,
-              ...(k.easingConfig && { easingConfig: k.easingConfig }),
-            })),
-          })),
-        })),
-      }),
-      // Sub-compositions (pre-comps)
-      ...(() => {
-        const comps = useCompositionsStore.getState().compositions;
-        if (comps.length === 0) return {};
-        return {
-          compositions: comps.map((c) => ({
-            id: c.id,
-            name: c.name,
-            items: c.items as ProjectTimeline['items'],
-            tracks: c.tracks as ProjectTimeline['tracks'],
-            ...(c.transitions?.length && { transitions: c.transitions as ProjectTimeline['transitions'] }),
-            ...(c.keyframes?.length && { keyframes: c.keyframes as ProjectTimeline['keyframes'] }),
-            fps: c.fps,
-            width: c.width,
-            height: c.height,
-            durationInFrames: c.durationInFrames,
-            ...(c.backgroundColor && { backgroundColor: c.backgroundColor }),
-          })),
-        };
-      })(),
-    };
-
-    // Generate thumbnail — prefer capturing the existing preview canvas
-    // (near-free: reuses the already-initialized scrub renderer with cached
-    // media + GPU pipeline) and fall back to a full renderSingleFrame only
-    // when the preview capture path is unavailable.
-    let thumbnailId: string | undefined;
-    if (itemsState.items.length > 0) {
-      try {
-        const width = project.metadata?.width || 1920;
-        const height = project.metadata?.height || 1080;
-
-        // Calculate thumbnail dimensions preserving project aspect ratio
-        const maxThumbWidth = 320;
-        const maxThumbHeight = 180;
-        const projectAspectRatio = width / height;
-        const targetAspectRatio = maxThumbWidth / maxThumbHeight;
-
-        let thumbWidth: number;
-        let thumbHeight: number;
-        if (projectAspectRatio > targetAspectRatio) {
-          thumbWidth = maxThumbWidth;
-          thumbHeight = Math.round(maxThumbWidth / projectAspectRatio);
-        } else {
-          thumbHeight = maxThumbHeight;
-          thumbWidth = Math.round(maxThumbHeight * projectAspectRatio);
-        }
-
-        let thumbnailBlob: Blob | null = null;
-
-        // Fast path: capture from existing preview renderer (avoids full re-init)
-        const captureCanvasSource = usePlaybackStore.getState().captureCanvasSource;
-        if (captureCanvasSource) {
-          try {
-            const sourceCanvas = await captureCanvasSource();
-            if (sourceCanvas) {
-              thumbnailBlob = await scaleCanvasToBlob(sourceCanvas, thumbWidth, thumbHeight, 0.85);
-            }
-          } catch {
-            // Fall through to slow path
-          }
-        }
-
-        // Slow path: full render from scratch (when preview isn't available)
-        if (!thumbnailBlob) {
-          const fps = project.metadata?.fps || 30;
-          const backgroundColor = project.metadata?.backgroundColor;
-          const composition = convertTimelineToComposition(
-            itemsState.tracks,
-            itemsState.items,
-            transitionsState.transitions,
-            fps,
-            width,
-            height,
-            null, null,
-            keyframesState.keyframes,
-            backgroundColor
-          );
-          const resolvedTracks = await resolveMediaUrls(composition.tracks);
-          const resolvedComposition = { ...composition, tracks: resolvedTracks };
-          thumbnailBlob = await renderSingleFrame({
-            composition: resolvedComposition,
-            frame: currentFrame,
-            width: thumbWidth,
-            height: thumbHeight,
-            quality: 0.85,
-            format: 'image/jpeg',
-          });
-        }
-
-        // Save thumbnail to IndexedDB
-        thumbnailId = `project:${projectId}:cover`;
-        await saveThumbnail({
-          id: thumbnailId,
-          mediaId: projectId,
-          blob: thumbnailBlob,
-          timestamp: Date.now(),
-          width: thumbWidth,
-          height: thumbHeight,
-        });
-      } catch (thumbError) {
-        // Thumbnail generation failure shouldn't block save
-        logger.warn('Failed to generate thumbnail:', thumbError);
-      }
-    }
-
-    // Update project
-    // Clear deprecated thumbnail field when using thumbnailId to save space
-    await updateProject(projectId, {
-      timeline,
-      ...(thumbnailId && { thumbnailId, thumbnail: undefined }),
-      updatedAt: Date.now(),
-    });
-
-    // Mark as clean after successful save
-    useTimelineSettingsStore.getState().markClean();
-
-    // Re-enter the sub-composition the user was editing before save
-    if (previousCompositionId !== null) {
-      useCompositionNavigationStore.getState().enterComposition(previousCompositionId, previousLabel);
-    }
-  } catch (error) {
-    logger.error('Failed to save timeline:', error);
-    // Re-enter even on failure so user doesn't lose their editing context
-    if (previousCompositionId !== null) {
-      useCompositionNavigationStore.getState().enterComposition(previousCompositionId, previousLabel);
-    }
-    throw error;
-  }
-}
-
-/**
- * Load timeline from project in IndexedDB.
- * Single source of truth for all timeline loading (project open, refresh, etc.)
- *
- * This function:
- * 1. Loads the project from storage
- * 2. Runs migrations if the project schema is outdated
- * 3. Normalizes data to apply current defaults
- * 4. Persists migrated projects back to storage
- * 5. Restores timeline state to stores
- */
-async function loadTimeline(projectId: string): Promise<void> {
-  // Mark loading started - used to coordinate initial player sync
-  useTimelineSettingsStore.getState().setTimelineLoading(true);
-
-  try {
-    const rawProject = await getProject(projectId);
-    if (!rawProject) {
-      throw new Error(`Project not found: ${projectId}`);
-    }
-
-    // Run migrations and normalization
-    const migrationResult = migrateProject(rawProject);
-    const project = migrationResult.project;
-
-    // Log migration activity
-    if (migrationResult.migrated) {
-      if (migrationResult.appliedMigrations.length > 0) {
-        logger.info(
-          `Migrated project from v${migrationResult.fromVersion} to v${migrationResult.toVersion}`,
-          { migrations: migrationResult.appliedMigrations }
-        );
-      } else {
-        logger.debug('Project normalized with current defaults');
-      }
-
-      // Persist migrated project back to storage
-      await updateProject(projectId, {
-        ...project,
-        schemaVersion: CURRENT_SCHEMA_VERSION,
-      });
-      logger.debug('Saved migrated project to storage');
-    }
-
-    if (project.timeline && project.timeline.tracks?.length > 0) {
-      const t = project.timeline;
-
-      logger.debug('loadTimeline: loading existing timeline', {
-        tracksCount: t.tracks?.length ?? 0,
-        itemsCount: t.items?.length ?? 0,
-        keyframesCount: t.keyframes?.length ?? 0,
-        transitionsCount: t.transitions?.length ?? 0,
-        schemaVersion: project.schemaVersion ?? 1,
-      });
-
-      // Restore tracks and items from project
-      // Sort tracks by order property to preserve user's track arrangement
-      const sortedTracks = [...(t.tracks || [])]
-        .map((track, index) => ({ track, originalIndex: index }))
-        .sort((a, b) => (a.track.order ?? a.originalIndex) - (b.track.order ?? b.originalIndex))
-        .map(({ track }) => ({
-          ...track,
-          items: [], // Items are stored separately
-        }));
-
-      // Restore all state to domain stores
-      useItemsStore.getState().setTracks(sortedTracks as TimelineTrack[]);
-      useItemsStore.getState().setItems((t.items || []) as TimelineItem[]);
-      useTransitionsStore.getState().setTransitions((t.transitions || []) as Transition[]);
-      useKeyframesStore.getState().setKeyframes((t.keyframes || []) as ItemKeyframes[]);
-      useMarkersStore.getState().setMarkers(t.markers || []);
-      useMarkersStore.getState().setInPoint(t.inPoint ?? null);
-      useMarkersStore.getState().setOutPoint(t.outPoint ?? null);
-      useTimelineSettingsStore.getState().setScrollPosition(t.scrollPosition || 0);
-
-      // Restore sub-compositions
-      if (t.compositions && t.compositions.length > 0) {
-        useCompositionsStore.getState().setCompositions(
-          t.compositions.map((c) => ({
-            id: c.id,
-            name: c.name,
-            items: c.items as TimelineItem[],
-            tracks: c.tracks as TimelineTrack[],
-            transitions: (c.transitions ?? []) as Transition[],
-            keyframes: (c.keyframes ?? []) as ItemKeyframes[],
-            fps: c.fps,
-            width: c.width,
-            height: c.height,
-            durationInFrames: c.durationInFrames,
-            ...(c.backgroundColor && { backgroundColor: c.backgroundColor }),
-          }))
-        );
-      } else {
-        useCompositionsStore.getState().setCompositions([]);
-      }
-
-      // Reset composition navigation to root on load
-      useCompositionNavigationStore.getState().resetToRoot();
-
-      // Restore zoom and playback
-      if (t.zoomLevel !== undefined) {
-        useZoomStore.getState().setZoomLevel(t.zoomLevel);
-      } else {
-        useZoomStore.getState().setZoomLevel(1);
-      }
-      if (t.currentFrame !== undefined) {
-        usePlaybackStore.getState().setCurrentFrame(t.currentFrame);
-      } else {
-        usePlaybackStore.getState().setCurrentFrame(0);
-      }
-    } else {
-      logger.debug('loadTimeline: initializing new project with default track');
-
-      // Initialize with default tracks for new projects
-      useItemsStore.getState().setTracks([
-        {
-          id: 'track-1',
-          name: 'Track 1',
-          height: DEFAULT_TRACK_HEIGHT,
-          locked: false,
-          visible: true,
-          muted: false,
-          solo: false,
-          order: 0,
-          items: [],
-        },
-      ]);
-      useItemsStore.getState().setItems([]);
-      useTransitionsStore.getState().setTransitions([]);
-      useKeyframesStore.getState().setKeyframes([]);
-      useMarkersStore.getState().setMarkers([]);
-      useMarkersStore.getState().setInPoint(null);
-      useMarkersStore.getState().setOutPoint(null);
-      useCompositionsStore.getState().setCompositions([]);
-      useCompositionNavigationStore.getState().resetToRoot();
-      useTimelineSettingsStore.getState().setScrollPosition(0);
-      useZoomStore.getState().setZoomLevel(1);
-      usePlaybackStore.getState().setCurrentFrame(0);
-    }
-
-    // Common setup for both cases
-    // fps is stored in project.metadata, not timeline
-    useTimelineSettingsStore.getState().setFps(project.metadata?.fps || 30);
-    // snapEnabled is UI state, default to true
-    useTimelineSettingsStore.getState().setSnapEnabled(true);
-    useTimelineSettingsStore.getState().markClean();
-
-    // Clear undo history when loading
-    useTimelineCommandStore.getState().clearHistory();
-
-    // Validate media references after loading timeline
-    const loadedItems = useItemsStore.getState().items;
-    const orphans = await validateMediaReferences(loadedItems, projectId);
-    if (orphans.length > 0) {
-      logger.warn(`Found ${orphans.length} orphaned clip(s) referencing deleted media`);
-      useMediaLibraryStore.getState().setOrphanedClips(orphans);
-      useMediaLibraryStore.getState().openOrphanedClipsDialog();
-    }
-
-    // Mark loading complete - signals player sync can proceed
-    useTimelineSettingsStore.getState().setTimelineLoading(false);
-  } catch (error) {
-    logger.error('Failed to load timeline:', error);
-    // Still mark loading complete on error so UI isn't stuck
-    useTimelineSettingsStore.getState().setTimelineLoading(false);
-    throw error;
-  }
-}
+import { loadTimeline, saveTimeline } from './timeline-persistence';
 
 // =============================================================================
 // CACHED SNAPSHOT SYSTEM
@@ -536,11 +103,6 @@ function getSnapshot(): TimelineState & TimelineActions {
 
       // Actions (static references, never change)
       setTracks: timelineActions.setTracks,
-      createGroup: timelineActions.createGroup,
-      ungroup: timelineActions.ungroup,
-      toggleGroupCollapse: timelineActions.toggleGroupCollapse,
-      addToGroup: timelineActions.addToGroup,
-      removeFromGroup: timelineActions.removeFromGroup,
       addItem: timelineActions.addItem,
       addItems: timelineActions.addItems,
       updateItem: timelineActions.updateItem,
@@ -552,14 +114,18 @@ function getSnapshot(): TimelineState & TimelineActions {
       setScrollPosition: timelineActions.setScrollPosition,
       moveItem: timelineActions.moveItem,
       moveItems: timelineActions.moveItems,
+      moveItemsWithTrackChanges: timelineActions.moveItemsWithTrackChanges,
       duplicateItems: timelineActions.duplicateItems,
+      duplicateItemsWithTrackChanges: timelineActions.duplicateItemsWithTrackChanges,
       trimItemStart: timelineActions.trimItemStart,
       trimItemEnd: timelineActions.trimItemEnd,
       rollingTrimItems: timelineActions.rollingTrimItems,
       rippleTrimItem: timelineActions.rippleTrimItem,
       splitItem: timelineActions.splitItem,
+      splitItemAtFrames: timelineActions.splitItemAtFrames,
       joinItems: timelineActions.joinItems,
       rateStretchItem: timelineActions.rateStretchItem,
+      resetSpeedWithRipple: timelineActions.resetSpeedWithRipple,
       setInPoint: timelineActions.setInPoint,
       setOutPoint: timelineActions.setOutPoint,
       clearInOutPoints: timelineActions.clearInOutPoints,
@@ -590,6 +156,7 @@ function getSnapshot(): TimelineState & TimelineActions {
       removeKeyframesForProperty: timelineActions.removeKeyframesForProperty,
       getKeyframesForItem: timelineActions.getKeyframesForItem,
       hasKeyframesAtFrame: timelineActions.hasKeyframesAtFrame,
+      repairLegacyAvTracks: timelineActions.repairLegacyAvTracks,
       clearTimeline: timelineActions.clearTimeline,
       markDirty: timelineActions.markDirty,
       markClean: timelineActions.markClean,

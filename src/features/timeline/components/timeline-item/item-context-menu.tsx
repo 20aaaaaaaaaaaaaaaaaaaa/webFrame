@@ -18,7 +18,8 @@ import {
   WHISPER_MODEL_LABELS,
   WHISPER_MODEL_OPTIONS,
 } from '@/shared/utils/whisper-settings';
-import { useTranslation } from 'react-i18next';
+import { formatHotkeyBinding } from '@/config/hotkeys';
+import { useResolvedHotkeys } from '@/features/timeline/deps/settings';
 
 interface ItemContextMenuProps {
   children: ReactNode;
@@ -31,9 +32,13 @@ interface ItemContextMenuProps {
   closerEdge: 'left' | 'right' | null;
   /** Keyframed properties for the item (used to build clear submenu) */
   keyframedProperties?: PropertyKeyframes[];
+  canLinkSelected?: boolean;
+  canUnlinkSelected?: boolean;
   onJoinSelected: () => void;
   onJoinLeft: () => void;
   onJoinRight: () => void;
+  onLinkSelected?: () => void;
+  onUnlinkSelected?: () => void;
   onRippleDelete: () => void;
   onDelete: () => void;
   onClearAllKeyframes?: () => void;
@@ -57,6 +62,13 @@ interface ItemContextMenuProps {
   /** Whether multiple items are selected (enables pre-comp creation) */
   canCreatePreComp?: boolean;
   onCreatePreComp?: () => void;
+  /** Whether this item is a text item (enables generate audio option) */
+  isTextItem?: boolean;
+  onGenerateAudioFromText?: () => void;
+  /** Whether scene detection is available for this item */
+  canDetectScenes?: boolean;
+  isDetectingScenes?: boolean;
+  onDetectScenes?: (method: 'histogram' | 'optical-flow') => void;
 }
 
 /**
@@ -72,9 +84,13 @@ export const ItemContextMenu = memo(function ItemContextMenu({
   hasJoinableRight,
   closerEdge,
   keyframedProperties,
+  canLinkSelected,
+  canUnlinkSelected,
   onJoinSelected,
   onJoinLeft,
   onJoinRight,
+  onLinkSelected,
+  onUnlinkSelected,
   onRippleDelete,
   onDelete,
   onClearAllKeyframes,
@@ -94,8 +110,13 @@ export const ItemContextMenu = memo(function ItemContextMenu({
   onDissolveComposition,
   canCreatePreComp,
   onCreatePreComp,
+  isTextItem,
+  onGenerateAudioFromText,
+  canDetectScenes,
+  isDetectingScenes,
+  onDetectScenes,
 }: ItemContextMenuProps) {
-  const { t } = useTranslation();
+  const hotkeys = useResolvedHotkeys();
   const selectedCount = useSelectionStore((s) => s.selectedItemIds.length);
   // Filter to only properties that actually have keyframes
   const propertiesWithKeyframes = useMemo(() => {
@@ -128,19 +149,19 @@ export const ItemContextMenu = memo(function ItemContextMenu({
             <>
               {showJoinLeft && (
                 <ContextMenuItem onClick={onJoinLeft}>
-                  {t('timeline.joinWithPrevious', 'Join with Previous')}
+                  Join with Previous
                   <ContextMenuShortcut>J</ContextMenuShortcut>
                 </ContextMenuItem>
               )}
               {showJoinRight && (
                 <ContextMenuItem onClick={onJoinRight}>
-                  {t('timeline.joinWithNext', 'Join with Next')}
+                  Join with Next
                   <ContextMenuShortcut>J</ContextMenuShortcut>
                 </ContextMenuItem>
               )}
               {canJoinSelected && (
                 <ContextMenuItem onClick={onJoinSelected}>
-                  {t('timeline.joinSelected', 'Join Selected')}
+                  Join Selected
                   <ContextMenuShortcut>J</ContextMenuShortcut>
                 </ContextMenuItem>
               )}
@@ -149,15 +170,33 @@ export const ItemContextMenu = memo(function ItemContextMenu({
           );
         })()}
 
+        {(canLinkSelected || canUnlinkSelected) && (
+          <>
+            {canLinkSelected && onLinkSelected && (
+              <ContextMenuItem onClick={onLinkSelected}>
+                Link Clips
+                <ContextMenuShortcut>{formatHotkeyBinding(hotkeys.LINK_AUDIO_VIDEO)}</ContextMenuShortcut>
+              </ContextMenuItem>
+            )}
+            {canUnlinkSelected && onUnlinkSelected && (
+              <ContextMenuItem onClick={onUnlinkSelected}>
+                Unlink Clips
+                <ContextMenuShortcut>{formatHotkeyBinding(hotkeys.UNLINK_AUDIO_VIDEO)}</ContextMenuShortcut>
+              </ContextMenuItem>
+            )}
+            <ContextMenuSeparator />
+          </>
+        )}
+
         {/* Clear Keyframes submenu - only show if item has keyframes */}
         {hasKeyframes && (
           <>
             <ContextMenuSub>
-              <ContextMenuSubTrigger>{t('timeline.clearKeyframes', 'Clear Keyframes')}</ContextMenuSubTrigger>
+              <ContextMenuSubTrigger>Clear Keyframes</ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
                 <ContextMenuItem onClick={onClearAllKeyframes}>
-                  {t('timeline.clearAll', 'Clear All')}
-                  <ContextMenuShortcut>Shift+K</ContextMenuShortcut>
+                  Clear All
+                  <ContextMenuShortcut>{formatHotkeyBinding(hotkeys.CLEAR_KEYFRAMES)}</ContextMenuShortcut>
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 {propertiesWithKeyframes.map(({ property }) => (
@@ -178,7 +217,7 @@ export const ItemContextMenu = memo(function ItemContextMenu({
         {selectedCount >= 2 && onBentoLayout && (
           <>
             <ContextMenuItem onClick={onBentoLayout}>
-              {t('timeline.bentoLayout', 'Bento Layout...')}
+              Bento Layout...
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
@@ -188,8 +227,41 @@ export const ItemContextMenu = memo(function ItemContextMenu({
         {isVideoItem && playheadInBounds && onFreezeFrame && (
           <>
             <ContextMenuItem onClick={onFreezeFrame}>
-              {t('timeline.insertFreezeFrame', 'Insert Freeze Frame')}
+              Insert Freeze Frame
               <ContextMenuShortcut>Shift+F</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+
+        {canDetectScenes && onDetectScenes && (
+          <>
+            {isDetectingScenes ? (
+              <ContextMenuItem disabled>
+                Detecting Scenes...
+              </ContextMenuItem>
+            ) : (
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>Detect Scenes &amp; Split</ContextMenuSubTrigger>
+                <ContextMenuSubContent className="w-48">
+                  <ContextMenuItem onClick={() => onDetectScenes('histogram')}>
+                    Fast (Histogram)
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => onDetectScenes('optical-flow')}>
+                    AI (Gemma)
+                  </ContextMenuItem>
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+            )}
+            <ContextMenuSeparator />
+          </>
+        )}
+
+        {/* Generate Audio from Text - only show for text items */}
+        {isTextItem && onGenerateAudioFromText && (
+          <>
+            <ContextMenuItem onClick={onGenerateAudioFromText}>
+              Generate Audio from Text
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
@@ -199,12 +271,12 @@ export const ItemContextMenu = memo(function ItemContextMenu({
           <>
             {isGeneratingCaptions ? (
               <ContextMenuItem disabled>
-                {t('timeline.updatingCaptions', 'Updating Captions...')}
+                Updating Captions...
               </ContextMenuItem>
             ) : (
               <>
                 <ContextMenuSub>
-                  <ContextMenuSubTrigger>{t('timeline.generateCaptions', 'Generate Captions for Segment')}</ContextMenuSubTrigger>
+                  <ContextMenuSubTrigger>Generate Captions for Segment</ContextMenuSubTrigger>
                   <ContextMenuSubContent className="w-48">
                     {defaultCaptionModel && (
                       <>
@@ -227,7 +299,7 @@ export const ItemContextMenu = memo(function ItemContextMenu({
 
                 {canRegenerateCaptions && onRegenerateCaptions && (
                   <ContextMenuSub>
-                    <ContextMenuSubTrigger>{t('timeline.regenerateCaptions', 'Regenerate Captions for Segment')}</ContextMenuSubTrigger>
+                    <ContextMenuSubTrigger>Regenerate Captions for Segment</ContextMenuSubTrigger>
                     <ContextMenuSubContent className="w-48">
                       {defaultCaptionModel && (
                         <>
@@ -257,17 +329,17 @@ export const ItemContextMenu = memo(function ItemContextMenu({
         {/* Composition operations */}
         {isCompositionItem && onEnterComposition && (
           <ContextMenuItem onClick={onEnterComposition}>
-            {t('timeline.enterComposition', 'Enter Composition')}
+            Open Compound Clip
           </ContextMenuItem>
         )}
         {isCompositionItem && onDissolveComposition && (
           <ContextMenuItem onClick={onDissolveComposition}>
-            {t('timeline.dissolvePreComp', 'Dissolve Pre-Comp')}
+            Dissolve Compound Clip
           </ContextMenuItem>
         )}
         {canCreatePreComp && onCreatePreComp && (
           <ContextMenuItem onClick={onCreatePreComp}>
-            {t('timeline.createPreComp', 'Create Pre-Composition')}
+            Create Compound Clip
           </ContextMenuItem>
         )}
         {((isCompositionItem && (onEnterComposition || onDissolveComposition)) || (canCreatePreComp && onCreatePreComp)) && (
@@ -279,7 +351,7 @@ export const ItemContextMenu = memo(function ItemContextMenu({
           disabled={!isSelected}
           className="text-destructive focus:text-destructive"
         >
-          {t('timeline.rippleDelete', 'Ripple Delete')}
+          Ripple Delete
           <ContextMenuShortcut>Ctrl+Del</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem
@@ -287,7 +359,7 @@ export const ItemContextMenu = memo(function ItemContextMenu({
           disabled={!isSelected}
           className="text-destructive focus:text-destructive"
         >
-          {t('timeline.delete', 'Delete')}
+          Delete
           <ContextMenuShortcut>Del</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>

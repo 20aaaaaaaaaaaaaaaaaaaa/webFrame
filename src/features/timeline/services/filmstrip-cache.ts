@@ -14,8 +14,13 @@ import { createManagedWorkerPool } from '@/shared/utils/managed-worker-pool';
 
 const logger = createLogger('FilmstripCache');
 
-import { THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT } from '@/features/timeline/constants';
+import {
+  FILMSTRIP_EXTRACT_WIDTH,
+  FILMSTRIP_EXTRACT_HEIGHT,
+  THUMBNAIL_WIDTH,
+} from '@/features/timeline/constants';
 import { filmstripOPFSStorage, type FilmstripFrame } from './filmstrip-opfs-storage';
+import { FilmstripMemoryState } from './filmstrip-memory-state';
 import type { ExtractRequest, WorkerResponse } from '../workers/filmstrip-extraction-worker';
 
 export { THUMBNAIL_WIDTH };
@@ -30,17 +35,19 @@ export interface Filmstrip {
 
 type FilmstripUpdateCallback = (filmstrip: Filmstrip) => void;
 
-// Configuration for parallel extraction
+// Configuration for extraction throughput.
+// Keep the cold-start path intentionally conservative so dropping several clips
+// into a fresh timeline does not fan out into a large parallel decode burst.
 const FRAME_RATE = 1; // Must match worker - 1fps for filmstrip thumbnails
 const MIN_FRAMES_PER_WORKER = 120; // Avoid over-parallelizing small/medium extractions
 const MAX_WORKERS = 2; // Max workers per extraction on high-core devices
 const MIN_CORES_FOR_PARALLEL_WORKERS = 8; // Enable worker parallelism on mid/high-end CPUs
 const HIGH_CORE_THRESHOLD = 12;
-const MAX_CONCURRENT_EXTRACTIONS_BASE = 3;
-const MAX_CONCURRENT_EXTRACTIONS_HIGH_CORE = 4;
-const MIN_FILMSTRIP_TARGET_FRAMES = 90;
-const MAX_FILMSTRIP_TARGET_FRAMES = 300;
-const TARGET_FRAME_BUDGET_SCALE = 8;
+const MAX_CONCURRENT_EXTRACTIONS_BASE = 1;
+const MAX_CONCURRENT_EXTRACTIONS_HIGH_CORE = 2;
+const MIN_FILMSTRIP_TARGET_FRAMES = 60;
+const MAX_FILMSTRIP_TARGET_FRAMES = 160;
+const TARGET_FRAME_BUDGET_SCALE = 6;
 const MAX_PRIORITY_DENSE_FRAMES = 180;
 const BACKGROUND_STRIDE_MEDIUM = 2; // 0.5fps equivalent outside priority range
 const BACKGROUND_STRIDE_LONG = 3;
@@ -56,9 +63,8 @@ const PROGRESS_NOTIFY_INTERVAL_MS = 200;
 const PROGRESS_NOTIFY_FRAME_DELTA = 4;
 const IMAGE_FORMAT = 'image/jpeg';
 const IMAGE_QUALITY = 0.7;
-const FRAME_MEMORY_FALLBACK_BYTES = THUMBNAIL_WIDTH * THUMBNAIL_HEIGHT * 4;
 const MAX_IDLE_WORKERS_BASE = 2;
-const WORKER_PARALLEL_SAVES_BASE = 4;
+const WORKER_PARALLEL_SAVES_BASE = 2;
 const WORKER_PARALLEL_SAVES_MEMORY_PRESSURE = 2;
 const MEMORY_CHECK_INTERVAL_MS = 500;
 
@@ -158,16 +164,9 @@ export interface FilmstripMetricsSnapshot {
   recent: ExtractionMetricSample[];
 }
 
-interface CacheEntryMeta {
-  sizeBytes: number;
-  lastAccessedAt: number;
-}
-
 class FilmstripCacheService {
   private cache = new Map<string, Filmstrip>();
-  private cacheMeta = new Map<string, CacheEntryMeta>();
-  private cacheBytes = 0;
-  private idleEvictionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly memoryState = new FilmstripMemoryState();
   private pendingExtractions = new Map<string, PendingExtraction>();
   private updateCallbacks = new Map<string, Set<FilmstripUpdateCallback>>();
   private loadingPromises = new Map<string, Promise<Filmstrip>>();
@@ -191,6 +190,10 @@ class FilmstripCacheService {
   };
   private metricsHistory: ExtractionMetricSample[] = [];
   private lastMemoryCheckAt = 0;
+
+  private get cacheBytes(): number {
+    return this.memoryState.sizeBytes;
+  }
 
   private getQueueScore(mediaId: string): number {
     const pending = this.pendingExtractions.get(mediaId);
@@ -254,52 +257,20 @@ class FilmstripCacheService {
     return this.cacheBytes >= MEMORY_TARGET_BYTES;
   }
 
-  private estimateFilmstripBytes(frames: FilmstripFrame[]): number {
-    let total = 0;
-    for (const frame of frames) {
-      total += frame.byteSize && frame.byteSize > 0
-        ? frame.byteSize
-        : FRAME_MEMORY_FALLBACK_BYTES;
-    }
-    return total;
-  }
-
   private updateCacheMeta(mediaId: string, filmstrip: Filmstrip): void {
-    const nextSize = this.estimateFilmstripBytes(filmstrip.frames);
-    const previous = this.cacheMeta.get(mediaId);
-    if (previous) {
-      this.cacheBytes = Math.max(0, this.cacheBytes - previous.sizeBytes);
-    }
-    this.cacheBytes += nextSize;
-    this.cacheMeta.set(mediaId, {
-      sizeBytes: nextSize,
-      lastAccessedAt: Date.now(),
-    });
+    this.memoryState.updateEntry(mediaId, filmstrip);
   }
 
   private touchCacheEntry(mediaId: string): void {
-    const entry = this.cacheMeta.get(mediaId);
-    if (entry) {
-      entry.lastAccessedAt = Date.now();
-      return;
-    }
-    const cached = this.cache.get(mediaId);
-    if (!cached) return;
-    this.updateCacheMeta(mediaId, cached);
+    this.memoryState.touchEntry(mediaId, this.cache.get(mediaId) ?? null);
   }
 
   private clearCacheMeta(mediaId: string): void {
-    const previous = this.cacheMeta.get(mediaId);
-    if (!previous) return;
-    this.cacheBytes = Math.max(0, this.cacheBytes - previous.sizeBytes);
-    this.cacheMeta.delete(mediaId);
+    this.memoryState.clearEntry(mediaId);
   }
 
   private clearIdleEvictionTimer(mediaId: string): void {
-    const timer = this.idleEvictionTimers.get(mediaId);
-    if (!timer) return;
-    clearTimeout(timer);
-    this.idleEvictionTimers.delete(mediaId);
+    this.memoryState.clearIdleTimer(mediaId);
   }
 
   private scheduleIdleEviction(mediaId: string): void {
@@ -308,11 +279,9 @@ class FilmstripCacheService {
     if (this.hasSubscribers(mediaId)) return;
     if (!this.cache.has(mediaId)) return;
 
-    const timer = setTimeout(() => {
-      this.idleEvictionTimers.delete(mediaId);
+    this.memoryState.scheduleIdleTimer(mediaId, CACHE_EVICT_IDLE_MS, () => {
       this.tryEvictMedia(mediaId, 'idle-timeout');
-    }, CACHE_EVICT_IDLE_MS);
-    this.idleEvictionTimers.set(mediaId, timer);
+    });
   }
 
   private hasSubscribers(mediaId: string): boolean {
@@ -346,16 +315,12 @@ class FilmstripCacheService {
       || (usedHeap !== null && usedHeap > MEMORY_SOFT_LIMIT_BYTES);
     if (!shouldTrim) return;
 
-    const evictable = Array.from(this.cacheMeta.entries())
-      .filter(([mediaId]) => !this.pendingExtractions.has(mediaId))
-      .sort((a, b) => {
-        const aSubscribed = this.hasSubscribers(a[0]) ? 1 : 0;
-        const bSubscribed = this.hasSubscribers(b[0]) ? 1 : 0;
-        if (aSubscribed !== bSubscribed) return aSubscribed - bSubscribed;
-        return a[1].lastAccessedAt - b[1].lastAccessedAt;
-      });
+    const evictable = this.memoryState.getEvictionCandidates({
+      hasSubscribers: (mediaId) => this.hasSubscribers(mediaId),
+      pendingMediaIds: this.pendingExtractions,
+    });
 
-    for (const [mediaId] of evictable) {
+    for (const mediaId of evictable) {
       if (this.cacheBytes <= MEMORY_SOFT_LIMIT_BYTES) {
         break;
       }
@@ -927,8 +892,8 @@ class FilmstripCacheService {
     // Persist extraction session metadata once. Workers should focus on frame
     // writes; centralizing meta writes avoids cross-worker file contention.
     void filmstripOPFSStorage.saveMetadata(mediaId, {
-      width: THUMBNAIL_WIDTH,
-      height: THUMBNAIL_HEIGHT,
+      width: FILMSTRIP_EXTRACT_WIDTH,
+      height: FILMSTRIP_EXTRACT_HEIGHT,
       isComplete: false,
       frameCount: existingFrames.length,
     }).catch((error) => {
@@ -1097,10 +1062,14 @@ class FilmstripCacheService {
       ? (navigator.hardwareConcurrency || 4)
       : 4;
     const memoryConstrained = this.isSoftMemoryPressure();
+    const hasExtractionBacklog = this.activeExtractions.size > 1 || this.extractionQueue.length > 0;
 
-    // Determine workers per extraction based on hardware and frame count
+    // When multiple clips are competing for filmstrips, prefer breadth over
+    // depth: one worker per clip keeps the UI steadier than letting a single
+    // clip consume multiple workers while others wait.
     const maxWorkers = forceSingleWorker
       || memoryConstrained
+      || hasExtractionBacklog
       || hardwareConcurrency < MIN_CORES_FOR_PARALLEL_WORKERS
       ? 1
       : MAX_WORKERS;
@@ -1256,8 +1225,8 @@ class FilmstripCacheService {
               .sort((a, b) => a.index - b.index);
             try {
               await filmstripOPFSStorage.saveMetadata(mediaId, {
-                width: THUMBNAIL_WIDTH,
-                height: THUMBNAIL_HEIGHT,
+                width: FILMSTRIP_EXTRACT_WIDTH,
+                height: FILMSTRIP_EXTRACT_HEIGHT,
                 isComplete: true,
                 frameCount: finalFrames.length,
               });
@@ -1302,8 +1271,8 @@ class FilmstripCacheService {
         mediaId,
         blobUrl,
         duration,
-        width: THUMBNAIL_WIDTH,
-        height: THUMBNAIL_HEIGHT,
+        width: FILMSTRIP_EXTRACT_WIDTH,
+        height: FILMSTRIP_EXTRACT_HEIGHT,
         skipIndices: rangeSkipIndices,
         priorityIndices,
         targetIndices: rangeTargetIndices,
@@ -1547,8 +1516,8 @@ class FilmstripCacheService {
       });
 
       const canvas = document.createElement('canvas');
-      canvas.width = THUMBNAIL_WIDTH;
-      canvas.height = THUMBNAIL_HEIGHT;
+      canvas.width = FILMSTRIP_EXTRACT_WIDTH;
+      canvas.height = FILMSTRIP_EXTRACT_HEIGHT;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         throw new Error('Failed to create canvas context for filmstrip fallback');
@@ -1568,8 +1537,8 @@ class FilmstripCacheService {
       let extractedTargetCount = skipSet.size;
 
       await filmstripOPFSStorage.saveMetadata(mediaId, {
-        width: THUMBNAIL_WIDTH,
-        height: THUMBNAIL_HEIGHT,
+        width: FILMSTRIP_EXTRACT_WIDTH,
+        height: FILMSTRIP_EXTRACT_HEIGHT,
         isComplete: false,
         frameCount: skipSet.size,
       });
@@ -1633,8 +1602,8 @@ class FilmstripCacheService {
       }
 
       await filmstripOPFSStorage.saveMetadata(mediaId, {
-        width: THUMBNAIL_WIDTH,
-        height: THUMBNAIL_HEIGHT,
+        width: FILMSTRIP_EXTRACT_WIDTH,
+        height: FILMSTRIP_EXTRACT_HEIGHT,
         isComplete: true,
         frameCount: finishedPending.extractedFrames.size,
       });
@@ -1941,13 +1910,8 @@ class FilmstripCacheService {
     for (const mediaId of this.pendingExtractions.keys()) {
       this.abort(mediaId);
     }
-    for (const timer of this.idleEvictionTimers.values()) {
-      clearTimeout(timer);
-    }
-    this.idleEvictionTimers.clear();
     this.cache.clear();
-    this.cacheMeta.clear();
-    this.cacheBytes = 0;
+    this.memoryState.clear();
     await filmstripOPFSStorage.clearAll();
   }
 
@@ -1965,17 +1929,12 @@ class FilmstripCacheService {
       this.abort(mediaId);
     }
     this.workerPoolManager.terminateAll();
-    for (const timer of this.idleEvictionTimers.values()) {
-      clearTimeout(timer);
-    }
     // Revoke in-memory object URLs only; keep persisted OPFS filmstrip files.
     for (const mediaId of this.cache.keys()) {
       filmstripOPFSStorage.revokeUrls(mediaId);
     }
-    this.idleEvictionTimers.clear();
     this.cache.clear();
-    this.cacheMeta.clear();
-    this.cacheBytes = 0;
+    this.memoryState.clear();
     this.pendingExtractions.clear();
     this.clearMetrics();
     this.updateCallbacks.clear();

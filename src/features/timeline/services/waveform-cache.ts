@@ -18,6 +18,7 @@ import {
   chooseLevelForZoom,
   type MultiResolutionWaveform,
 } from './waveform-opfs-storage';
+import { SizedAccessedMemoryCache } from './sized-accessed-memory-cache';
 import type { WaveformWorkerResponse } from './waveform-worker';
 import type { WaveformBin } from '@/types/storage';
 import {
@@ -46,6 +47,7 @@ export interface CachedWaveform {
   duration: number;
   sampleRate: number;
   channels: number;
+  stereo: boolean;
   sizeBytes: number;
   lastAccessed: number;
   isComplete: boolean;
@@ -77,8 +79,7 @@ interface QueuedGeneration {
 type WaveformUpdateCallback = (waveform: CachedWaveform) => void;
 
 class WaveformCacheService {
-  private memoryCache = new Map<string, CachedWaveform>();
-  private currentCacheSize = 0;
+  private memoryCache = new SizedAccessedMemoryCache<CachedWaveform>(MAX_CACHE_SIZE_BYTES);
   private pendingRequests = new Map<string, PendingRequest>();
   private updateCallbacks = new Map<string, Set<WaveformUpdateCallback>>();
   private workerRequestId = 0;
@@ -166,9 +167,12 @@ class WaveformCacheService {
     } catch (error) {
       queued.reject(error instanceof Error ? error : new Error(String(error)));
     } finally {
-      this.activeGenerations.delete(queued.mediaId);
+      // Guard both deletes with requestId so a stale finally from an aborted
+      // run doesn't stomp a newer generation's tracking entries.
       const pending = this.pendingRequests.get(queued.mediaId);
-      if (pending && pending.requestId === queued.requestId) {
+      const isStale = pending && pending.requestId !== queued.requestId;
+      if (!isStale) {
+        this.activeGenerations.delete(queued.mediaId);
         this.pendingRequests.delete(queued.mediaId);
       }
       this.processGenerationQueue();
@@ -210,15 +214,7 @@ class WaveformCacheService {
    * Get waveform from memory cache (private)
    */
   private getFromMemoryCache(mediaId: string): CachedWaveform | null {
-    const cached = this.memoryCache.get(mediaId);
-
-    if (cached) {
-      // Update last accessed time
-      cached.lastAccessed = Date.now();
-      return cached;
-    }
-
-    return null;
+    return this.memoryCache.get(mediaId);
   }
 
   /**
@@ -233,56 +229,22 @@ class WaveformCacheService {
    * Add waveform to memory cache with LRU eviction
    */
   private addToMemoryCache(mediaId: string, data: CachedWaveform): void {
-    const existing = this.memoryCache.get(mediaId);
-    if (existing) {
-      this.currentCacheSize -= existing.sizeBytes;
-      this.memoryCache.delete(mediaId);
-    }
-
-    // Evict old entries if necessary
-    while (this.currentCacheSize + data.sizeBytes > MAX_CACHE_SIZE_BYTES && this.memoryCache.size > 0) {
-      this.evictOldest();
-    }
-
-    // Add to cache
-    this.memoryCache.set(mediaId, data);
-    this.currentCacheSize += data.sizeBytes;
-  }
-
-  /**
-   * Evict the oldest (least recently accessed) entry
-   */
-  private evictOldest(): void {
-    let oldestKey: string | null = null;
-    let oldestTime = Infinity;
-
-    for (const [key, entry] of this.memoryCache) {
-      if (entry.lastAccessed < oldestTime) {
-        oldestTime = entry.lastAccessed;
-        oldestKey = key;
-      }
-    }
-
-    if (oldestKey) {
-      const entry = this.memoryCache.get(oldestKey);
-      if (entry) {
-        this.currentCacheSize -= entry.sizeBytes;
-        this.memoryCache.delete(oldestKey);
-      }
-    }
+    this.memoryCache.add(mediaId, data);
   }
 
   private makeCachedWaveform(
     peaks: Float32Array,
     duration: number,
     channels: number,
-    isComplete: boolean
+    isComplete: boolean,
+    stereo = false
   ): CachedWaveform {
     return {
       peaks,
       duration,
       sampleRate: SAMPLES_PER_SECOND,
       channels,
+      stereo,
       sizeBytes: peaks.byteLength,
       lastAccessed: Date.now(),
       isComplete,
@@ -299,7 +261,8 @@ class WaveformCacheService {
       const levels = waveformOPFSStorage.generateMultiResolution(
         peaks,
         SAMPLES_PER_SECOND,
-        duration
+        duration,
+        channels >= 2 ? 2 : 1
       );
 
       const multiRes: MultiResolutionWaveform = {
@@ -352,6 +315,7 @@ class WaveformCacheService {
       binDurationSec: WAVEFORM_BIN_DURATION_SEC,
       duration,
       channels,
+      stereo: channels >= 2 || undefined,
       createdAt: now,
     });
   }
@@ -367,6 +331,15 @@ class WaveformCacheService {
     try {
       const meta = await getWaveformMetaFromIndexedDB(mediaId);
       if (meta) {
+        // Reject old mono data for multi-channel sources — force regeneration as stereo
+        if (meta.channels >= 2 && !meta.stereo) {
+          logger.debug(`Stale mono waveform for stereo source ${mediaId}; clearing and regenerating`);
+          await deleteWaveformFromIndexedDB(mediaId).catch((e) => {
+            logger.debug('Failed to clear stale mono waveform:', mediaId, e);
+          });
+          return null;
+        }
+
         const bins = await getWaveformBinsFromIndexedDB(mediaId, meta.binCount);
         if (bins.length === meta.binCount) {
           const peaks = new Float32Array(meta.totalSamples);
@@ -398,6 +371,7 @@ class WaveformCacheService {
               duration: meta.duration,
               sampleRate: meta.sampleRate,
               channels: meta.channels,
+              stereo: meta.stereo === true,
               sizeBytes: peaks.byteLength,
               lastAccessed: Date.now(),
               isComplete: true,
@@ -434,11 +408,13 @@ class WaveformCacheService {
     try {
       const level = await waveformOPFSStorage.getLevel(mediaId, 0);
       if (level) {
+        const floatsPerSample = level.channels >= 2 ? 2 : 1;
         const cached: CachedWaveform = {
           peaks: level.peaks,
-          duration: level.peaks.length / level.sampleRate,
+          duration: level.peaks.length / floatsPerSample / level.sampleRate,
           sampleRate: level.sampleRate,
-          channels: 1,
+          channels: level.channels,
+          stereo: level.channels >= 2,
           sizeBytes: level.peaks.byteLength,
           lastAccessed: Date.now(),
           isComplete: true,
@@ -467,6 +443,7 @@ class WaveformCacheService {
           duration: stored.duration,
           sampleRate: stored.sampleRate,
           channels: stored.channels,
+          stereo: false,
           sizeBytes: stored.peaks.byteLength,
           lastAccessed: Date.now(),
           isComplete: true,
@@ -535,6 +512,7 @@ class WaveformCacheService {
       const pendingBinWrites: Promise<void>[] = [];
       let duration = 0;
       let channels = 1;
+      let stereo = false;
       let peaks: Float32Array | null = null;
       let settled = false;
 
@@ -583,9 +561,10 @@ class WaveformCacheService {
             case 'init': {
               duration = event.data.duration;
               channels = event.data.channels;
+              stereo = event.data.stereo;
               peaks = new Float32Array(event.data.totalSamples);
 
-              const cached = this.makeCachedWaveform(peaks, duration, channels, false);
+              const cached = this.makeCachedWaveform(peaks, duration, channels, false, stereo);
               this.addToMemoryCache(mediaId, cached);
               this.notifyUpdate(mediaId, cached);
               break;
@@ -596,7 +575,8 @@ class WaveformCacheService {
               const { startIndex, peaks: chunkPeaks } = event.data;
               peaks.set(chunkPeaks, startIndex);
 
-              const binIndex = Math.floor(startIndex / WAVEFORM_BIN_SAMPLES);
+              const effectiveBinSamples = WAVEFORM_BIN_SAMPLES * (stereo ? 2 : 1);
+              const binIndex = Math.floor(startIndex / effectiveBinSamples);
               const bin: WaveformBin = {
                 id: `${mediaId}:bin:${binIndex}`,
                 mediaId,
@@ -612,7 +592,7 @@ class WaveformCacheService {
                 })
               );
 
-              const cached = this.makeCachedWaveform(peaks, duration, channels, false);
+              const cached = this.makeCachedWaveform(peaks, duration, channels, false, stereo);
               this.addToMemoryCache(mediaId, cached);
               this.notifyUpdate(mediaId, cached);
               break;
@@ -628,20 +608,22 @@ class WaveformCacheService {
               if (settled) {
                 break;
               }
+              const metaBinSamples = WAVEFORM_BIN_SAMPLES * (stereo ? 2 : 1);
               await saveWaveformMetaToIndexedDB({
                 id: mediaId,
                 mediaId,
                 kind: 'meta',
                 sampleRate: SAMPLES_PER_SECOND,
                 totalSamples: peaks.length,
-                binCount: Math.ceil(peaks.length / WAVEFORM_BIN_SAMPLES),
+                binCount: Math.ceil(peaks.length / metaBinSamples),
                 binDurationSec: WAVEFORM_BIN_DURATION_SEC,
                 duration,
                 channels,
+                stereo: stereo || undefined,
                 createdAt: Date.now(),
               });
 
-              const cached = this.makeCachedWaveform(peaks, duration, channels, true);
+              const cached = this.makeCachedWaveform(peaks, duration, channels, true, stereo);
               this.addToMemoryCache(mediaId, cached);
               this.notifyUpdate(mediaId, cached);
               void this.persistToOPFS(mediaId, peaks, duration, channels);
@@ -690,6 +672,116 @@ class WaveformCacheService {
   }
 
   /**
+   * Generate stereo interleaved peaks from an AudioBuffer (fallback path)
+   */
+  private generateStereoPeaksFallback(
+    audioBuffer: AudioBuffer,
+    channels: number,
+    numOutputSamples: number,
+    samplesPerOutput: number,
+    duration: number,
+    throwIfAborted: () => void,
+    onProgress?: (progress: number) => void
+  ): CachedWaveform {
+    const ch0 = audioBuffer.getChannelData(0);
+    const ch1 = audioBuffer.getChannelData(Math.min(1, channels - 1));
+    const peaks = new Float32Array(numOutputSamples * 2);
+
+    for (let i = 0; i < numOutputSamples; i++) {
+      const startIdx = i * samplesPerOutput;
+      const endIdx = Math.min(startIdx + samplesPerOutput, audioBuffer.length);
+
+      let maxL = 0;
+      let maxR = 0;
+      for (let j = startIdx; j < endIdx; j++) {
+        const lVal = Math.abs(ch0[j] ?? 0);
+        const rVal = Math.abs(ch1[j] ?? 0);
+        if (lVal > maxL) maxL = lVal;
+        if (rVal > maxR) maxR = rVal;
+      }
+      peaks[i * 2] = maxL;
+      peaks[i * 2 + 1] = maxR;
+      if ((i & 255) === 0) {
+        throwIfAborted();
+      }
+    }
+    onProgress?.(85);
+    throwIfAborted();
+
+    // Normalize to 0-1 range
+    let maxPeak = 0;
+    for (let i = 0; i < peaks.length; i++) {
+      if (peaks[i]! > maxPeak) maxPeak = peaks[i]!;
+    }
+    if (maxPeak > 0) {
+      for (let i = 0; i < peaks.length; i++) {
+        peaks[i] = peaks[i]! / maxPeak;
+      }
+    }
+
+    return this.makeCachedWaveform(peaks, duration, channels, true, true);
+  }
+
+  /**
+   * Generate mono peaks from an AudioBuffer (fallback path)
+   */
+  private generateMonoPeaksFallback(
+    audioBuffer: AudioBuffer,
+    channels: number,
+    numOutputSamples: number,
+    samplesPerOutput: number,
+    duration: number,
+    throwIfAborted: () => void,
+    onProgress?: (progress: number) => void
+  ): CachedWaveform {
+    // Mix channels to mono
+    const monoSamples = new Float32Array(audioBuffer.length);
+    for (let c = 0; c < channels; c++) {
+      const channelData = audioBuffer.getChannelData(c);
+      for (let i = 0; i < audioBuffer.length; i++) {
+        monoSamples[i]! += channelData[i]! / channels;
+        if ((i & 4095) === 0) {
+          throwIfAborted();
+        }
+      }
+    }
+    onProgress?.(70);
+    throwIfAborted();
+
+    const peaks = new Float32Array(numOutputSamples);
+
+    for (let i = 0; i < numOutputSamples; i++) {
+      const startIdx = i * samplesPerOutput;
+      const endIdx = Math.min(startIdx + samplesPerOutput, audioBuffer.length);
+
+      let maxVal = 0;
+      for (let j = startIdx; j < endIdx; j++) {
+        const val = Math.abs(monoSamples[j] ?? 0);
+        if (val > maxVal) maxVal = val;
+      }
+      peaks[i] = maxVal;
+      if ((i & 255) === 0) {
+        throwIfAborted();
+      }
+    }
+    onProgress?.(85);
+    throwIfAborted();
+
+    // Normalize to 0-1 range
+    let maxPeak = 0;
+    for (let i = 0; i < peaks.length; i++) {
+      if (peaks[i]! > maxPeak) maxPeak = peaks[i]!;
+    }
+    if (maxPeak > 0) {
+      for (let i = 0; i < peaks.length; i++) {
+        peaks[i] = peaks[i]! / maxPeak;
+      }
+    }
+
+    return this.makeCachedWaveform(peaks, duration, channels, true, false);
+  }
+
+  /**
    * Fallback: Generate waveform using AudioContext on main thread
    * Used when worker fails (e.g., mediabunny not available)
    */
@@ -735,64 +827,24 @@ class WaveformCacheService {
 
         const duration = audioBuffer.duration;
         const channels = audioBuffer.numberOfChannels;
-
-        // Mix channels to mono
-        const monoSamples = new Float32Array(audioBuffer.length);
-        for (let c = 0; c < channels; c++) {
-          const channelData = audioBuffer.getChannelData(c);
-          for (let i = 0; i < audioBuffer.length; i++) {
-            monoSamples[i]! += channelData[i]! / channels;
-            if ((i & 4095) === 0) {
-              throwIfAborted();
-            }
-          }
-        }
-        onProgress?.(70);
-        throwIfAborted();
+        const stereo = channels >= 2;
 
         // Downsample to target samples per second
         const numOutputSamples = Math.ceil(duration * SAMPLES_PER_SECOND);
-        const samplesPerOutput = Math.floor(monoSamples.length / numOutputSamples);
-        const peaks = new Float32Array(numOutputSamples);
+        const samplesPerOutput = Math.floor(audioBuffer.length / numOutputSamples);
 
-        for (let i = 0; i < numOutputSamples; i++) {
-          const startIdx = i * samplesPerOutput;
-          const endIdx = Math.min(startIdx + samplesPerOutput, monoSamples.length);
-
-          let maxVal = 0;
-          for (let j = startIdx; j < endIdx; j++) {
-            const val = Math.abs(monoSamples[j] ?? 0);
-            if (val > maxVal) maxVal = val;
-          }
-          peaks[i] = maxVal;
-          if ((i & 255) === 0) {
-            throwIfAborted();
-          }
-        }
-        onProgress?.(85);
-        throwIfAborted();
-
-        // Normalize to 0-1 range
-        let maxPeak = 0;
-        for (let i = 0; i < peaks.length; i++) {
-          if (peaks[i]! > maxPeak) maxPeak = peaks[i]!;
-        }
-        if (maxPeak > 0) {
-          for (let i = 0; i < peaks.length; i++) {
-            peaks[i] = peaks[i]! / maxPeak;
-          }
-        }
-
-        const cached = this.makeCachedWaveform(peaks, duration, channels, true);
+        const cached = stereo
+          ? this.generateStereoPeaksFallback(audioBuffer, channels, numOutputSamples, samplesPerOutput, duration, throwIfAborted, onProgress)
+          : this.generateMonoPeaksFallback(audioBuffer, channels, numOutputSamples, samplesPerOutput, duration, throwIfAborted, onProgress);
 
         // Add to memory cache
         this.addToMemoryCache(mediaId, cached);
         this.notifyUpdate(mediaId, cached);
 
-        await this.persistBinnedWaveform(mediaId, peaks, duration, channels).catch((saveError) => {
+        await this.persistBinnedWaveform(mediaId, cached.peaks, duration, channels).catch((saveError) => {
           logger.warn('Failed to persist waveform bins to IndexedDB:', saveError);
         });
-        void this.persistToOPFS(mediaId, peaks, duration, channels);
+        void this.persistToOPFS(mediaId, cached.peaks, duration, channels);
 
         onProgress?.(100);
         return cached;
@@ -933,7 +985,12 @@ class WaveformCacheService {
       return;
     }
 
-    // Running request
+    // Running request — clean up tracking state synchronously so that a
+    // subsequent getWaveform() call (e.g. React StrictMode remount) doesn't
+    // receive the stale, already-rejected promise.
+    this.pendingRequests.delete(mediaId);
+    this.activeGenerations.delete(mediaId);
+
     const activeWorker = this.workerManager.peekWorker();
     if (activeWorker) {
       activeWorker.postMessage({
@@ -948,6 +1005,8 @@ class WaveformCacheService {
     if (rejector) {
       rejector(new AbortError());
     }
+
+    this.processGenerationQueue();
   }
 
   /**
@@ -955,11 +1014,7 @@ class WaveformCacheService {
    */
   async clearMedia(mediaId: string): Promise<void> {
     // Clear from memory cache
-    const entry = this.memoryCache.get(mediaId);
-    if (entry) {
-      this.currentCacheSize -= entry.sizeBytes;
-      this.memoryCache.delete(mediaId);
-    }
+    this.memoryCache.delete(mediaId);
 
     // Clear from OPFS
     await waveformOPFSStorage.delete(mediaId);
@@ -974,7 +1029,6 @@ class WaveformCacheService {
    */
   clearAll(): void {
     this.memoryCache.clear();
-    this.currentCacheSize = 0;
   }
 
   /**
@@ -1029,6 +1083,7 @@ class WaveformCacheService {
   ): Promise<{
     peaks: Float32Array;
     sampleRate: number;
+    channels: number;
   } | null> {
     const levelIndex = chooseLevelForZoom(pixelsPerSecond);
     return waveformOPFSStorage.getLevel(mediaId, levelIndex);
@@ -1037,3 +1092,33 @@ class WaveformCacheService {
 
 // Singleton instance
 export const waveformCache = new WaveformCacheService();
+
+/**
+ * Downmix stereo interleaved peaks to mono by taking max(L, R) per sample.
+ * Returns the original peaks array unchanged for mono waveforms.
+ * Results are cached via WeakMap keyed on the source Float32Array.
+ */
+const monoPeaksCache = new WeakMap<Float32Array, Float32Array>();
+
+export function getMonoPeaks(waveform: CachedWaveform): Float32Array {
+  if (!waveform.stereo) return waveform.peaks;
+
+  // Only use cache for complete waveforms — progressive loading mutates the
+  // peaks Float32Array in-place, so a cached derivation would be stale.
+  if (waveform.isComplete) {
+    const cached = monoPeaksCache.get(waveform.peaks);
+    if (cached) return cached;
+  }
+
+  const perChannel = waveform.peaks.length / 2;
+  const mono = new Float32Array(perChannel);
+  for (let i = 0; i < perChannel; i++) {
+    mono[i] = Math.max(waveform.peaks[i * 2] ?? 0, waveform.peaks[i * 2 + 1] ?? 0);
+  }
+
+  if (waveform.isComplete) {
+    monoPeaksCache.set(waveform.peaks, mono);
+  }
+
+  return mono;
+}

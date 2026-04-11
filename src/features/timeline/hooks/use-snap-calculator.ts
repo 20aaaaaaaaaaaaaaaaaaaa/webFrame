@@ -2,9 +2,7 @@ import { useMemo, useCallback } from 'react';
 import type { SnapTarget } from '../types/drag';
 import { useTimelineStore } from '../stores/timeline-store';
 import { useTransitionsStore } from '../stores/transitions-store';
-import { useZoomStore } from '../stores/zoom-store';
 import { usePlaybackStore } from '@/shared/state/playback';
-import { useTimelineZoom } from './use-timeline-zoom';
 import {
   generateGridSnapPoints,
   findNearestSnapTarget,
@@ -13,6 +11,7 @@ import {
 } from '../utils/timeline-snap-utils';
 import { getVisibleTrackIds } from '../utils/group-utils';
 import { BASE_SNAP_THRESHOLD_PIXELS } from '../constants';
+import { getZoomLevelNow, getPixelsPerSecondNow } from '../utils/zoom-conversions';
 
 // Helpers to get state on-demand without subscribing
 // This is CRITICAL: useSnapCalculator is used by every TimelineItem via
@@ -35,31 +34,35 @@ const getTracksOnDemand = () => useTimelineStore.getState().tracks;
  */
 export function useSnapCalculator(
   timelineDuration: number,
-  excludeItemIds: string | string[] | null
+  excludeItemIds: string | string[] | null,
+  options: {
+    includeTransitionMidpoints?: boolean;
+  } = {},
 ) {
+  const includeTransitionMidpoints = options.includeTransitionMidpoints ?? true;
   // Normalize to array for consistent handling
   const excludeIds = useMemo(() => {
     if (!excludeItemIds) return [];
     return Array.isArray(excludeItemIds) ? excludeItemIds : [excludeItemIds];
   }, [excludeItemIds]);
   // Get state with granular selectors
-  // NOTE: Don't subscribe to items or currentFrame - read from store when needed to prevent re-renders
+  // NOTE: Don't subscribe to items, currentFrame, or zoom - read from store
+  // when needed to prevent re-renders. Zoom is read imperatively because
+  // useSnapCalculator is used by every TimelineItem via drag/trim hooks.
   const fps = useTimelineStore((s) => s.fps);
   const snapEnabled = useTimelineStore((s) => s.snapEnabled);
-  const zoomLevel = useZoomStore((s) => s.level);
-  const { pixelsPerSecond } = useTimelineZoom();
 
   /**
-   * Calculate adaptive snap threshold in frames
+   * Calculate adaptive snap threshold in frames (on-demand — reads zoom imperatively)
    */
-  const snapThresholdFrames = useMemo(() => {
+  const getSnapThresholdFrames = useCallback(() => {
     return calculateAdaptiveSnapThreshold(
-      zoomLevel,
+      getZoomLevelNow(),
       BASE_SNAP_THRESHOLD_PIXELS,
-      pixelsPerSecond,
+      getPixelsPerSecondNow(),
       fps
     );
-  }, [zoomLevel, pixelsPerSecond, fps]);
+  }, [fps]);
 
   /**
    * Generate snap targets on-demand (NOT memoized on items to avoid re-renders)
@@ -72,19 +75,19 @@ export function useSnapCalculator(
     const targets: SnapTarget[] = [];
 
     // 1. Grid snap points (timeline markers)
-    const gridFrames = generateGridSnapPoints(timelineDuration, fps, zoomLevel);
+    const gridFrames = generateGridSnapPoints(timelineDuration, fps, getZoomLevelNow());
     gridFrames.forEach((frame) => {
       targets.push({ frame, type: 'grid' });
     });
 
     // 2. Item edges + transition midpoints (filtered by visible tracks,
     //    transition inner edges suppressed, dragged items excluded)
-    for (const edge of getFilteredItemSnapEdges(items, transitions, visibleTrackIds, excludeIds)) {
+    for (const edge of getFilteredItemSnapEdges(items, transitions, visibleTrackIds, excludeIds, { includeTransitionMidpoints })) {
       targets.push(edge);
     }
 
     return targets;
-  }, [excludeIds, timelineDuration, fps, zoomLevel]);
+  }, [excludeIds, includeTransitionMidpoints, timelineDuration, fps]);
 
   /**
    * Calculate snap for a given position
@@ -105,6 +108,7 @@ export function useSnapCalculator(
 
     // Calculate end frame
     const targetEndFrame = targetStartFrame + itemDurationInFrames;
+    const snapThresholdFrames = getSnapThresholdFrames();
 
     // Generate snap targets on-demand and add playhead
     const currentFrame = usePlaybackStore.getState().currentFrame;
@@ -161,7 +165,7 @@ export function useSnapCalculator(
       snapTarget: null,
       didSnap: false,
     };
-  }, [snapEnabled, generateSnapTargets, snapThresholdFrames]);
+  }, [snapEnabled, generateSnapTargets, getSnapThresholdFrames]);
 
   /**
    * Get magnetic snap targets only (item edges, for visual guidelines)
@@ -182,7 +186,7 @@ export function useSnapCalculator(
     calculateSnap,
     magneticSnapTargets,
     getMagneticSnapTargets,
-    snapThresholdFrames,
+    getSnapThresholdFrames,
     snapEnabled,
   };
 }

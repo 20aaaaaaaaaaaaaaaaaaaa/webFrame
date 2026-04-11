@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { TimelineItem } from '@/types/timeline';
 import type { Transition } from '@/types/transition';
 import { useTimelineViewportStore } from '../stores/timeline-viewport-store';
@@ -8,10 +8,21 @@ import { useItemsStore } from '../stores/items-store';
 import { useTransitionsStore } from '../stores/transitions-store';
 
 /**
- * Pixels of buffer beyond viewport edges.
- * 500px covers ~5 seconds at default zoom — enough for fast scroll and drag previews.
+ * Pixels of buffer beyond viewport edges for mounting items.
+ * 2000px mounts clips well before they enter the viewport, so the mount
+ * jank (~100-170ms per clip) happens while the user is looking at content
+ * further from the edge. Original 500px caused visible stutter when
+ * scrolling into dense clip clusters.
  */
-const BUFFER_PX = 500;
+const BUFFER_PX = 2000;
+
+/**
+ * Inner buffer (pixels) — recomputation is skipped when the visible frame
+ * range shifts by less than this amount. Avoids filtering items/transitions
+ * on small scroll deltas that can't change the result. Must be smaller
+ * than BUFFER_PX to guarantee items mount before they enter the viewport.
+ */
+const HYSTERESIS_PX = 800;
 
 /** Sentinel arrays to avoid re-renders when track has no items */
 const EMPTY_ITEMS: TimelineItem[] = [];
@@ -27,24 +38,134 @@ interface VisibleItemsSnapshot {
   visibleTransitions: Transition[];
 }
 
+function quantizeInteractionPixelsPerSecond(pixelsPerSecond: number): number {
+  if (!Number.isFinite(pixelsPerSecond) || pixelsPerSecond <= 0) {
+    return 1;
+  }
+
+  const logStep = Math.log2(1.2);
+  const quantizedLog = Math.round(Math.log2(pixelsPerSecond) / logStep) * logStep;
+  return Math.pow(2, quantizedLog);
+}
+
+function getCullingPixelsPerSecond(zoomState: ReturnType<typeof useZoomStore.getState>): number {
+  if (!zoomState.isZoomInteracting) {
+    return zoomState.contentPixelsPerSecond;
+  }
+
+  // During zoom interaction the viewport's scrollLeft is in the LIVE coordinate
+  // space (cursor-anchor adjusted), so culling must use the live pps to avoid a
+  // coordinate-space mismatch that unmounts visible items.  Quantize in coarse
+  // 20% log-steps to avoid recomputing on every single wheel tick.
+  return quantizeInteractionPixelsPerSecond(zoomState.pixelsPerSecond);
+}
+
+function getTrackVisibleTransitions(trackId: string): Transition[] | undefined {
+  const transitionsState = useTransitionsStore.getState();
+  return transitionsState.transitionsByTrackId[trackId] ?? EMPTY_TRANSITIONS;
+}
+
+function computeVisibleItemsSnapshot(trackId: string): VisibleItemsSnapshot {
+  const { scrollLeft, viewportWidth } = useTimelineViewportStore.getState();
+  const pixelsPerSecond = getCullingPixelsPerSecond(useZoomStore.getState());
+  const { fps } = useTimelineSettingsStore.getState();
+  const items = useItemsStore.getState().itemsByTrackId[trackId];
+  const transitions = getTrackVisibleTransitions(trackId);
+  const visibleFrameRange = getVisibleFrameRange(scrollLeft, viewportWidth, pixelsPerSecond, fps);
+  const visibleItems = getVisibleItemsForRange(items, visibleFrameRange);
+  const visibleTransitions = getVisibleTransitionsForRange(
+    transitions,
+    items,
+    visibleItems,
+    visibleFrameRange
+  );
+  return { visibleItems, visibleTransitions };
+}
+
 /**
  * Returns only the items and transitions that overlap the visible viewport + buffer
  * for a given track. Items fully outside the range are not rendered as React components.
  */
 export function useVisibleItems(trackId: string) {
   const [snapshot, setSnapshot] = useState<VisibleItemsSnapshot>(() => computeVisibleItemsSnapshot(trackId));
+  // Track the frame range used for the last committed result so we can skip
+  // recomputation when scroll hasn't moved enough to change the item set.
+  const lastRangeRef = useRef<VisibleFrameRange | null>(null);
+  // Track last zoom/settings/data versions to detect non-scroll changes.
+  // itemsRef/transRef use array references (not lengths) because the items
+  // store preserves references for unchanged tracks — a new reference means
+  // at least one item was mutated (move, trim, property change, etc.).
+  const lastVersionRef = useRef<{
+    pps: number;
+    fps: number;
+    itemsRef: TimelineItem[] | undefined;
+    transRef: Transition[] | undefined;
+  }>({ pps: 0, fps: 0, itemsRef: undefined, transRef: undefined });
 
   useEffect(() => {
     const apply = () => {
-      const next = computeVisibleItemsSnapshot(trackId);
-      setSnapshot((prev) => (areVisibleSnapshotsEqual(prev, next) ? prev : next));
+      const cullingPixelsPerSecond = getCullingPixelsPerSecond(useZoomStore.getState());
+      const { fps } = useTimelineSettingsStore.getState();
+      const items = useItemsStore.getState().itemsByTrackId[trackId];
+      const transitions = getTrackVisibleTransitions(trackId);
+      const { scrollLeft, viewportWidth } = useTimelineViewportStore.getState();
+      const newRange = getVisibleFrameRange(scrollLeft, viewportWidth, cullingPixelsPerSecond, fps);
+
+      // Fast path: if only scroll changed and the range shift is within
+      // hysteresis, the visible item set is guaranteed unchanged.
+      // Array references are compared (not lengths) so in-place mutations
+      // (move, trim, property edits) that produce a new array always
+      // bypass the fast path and recompute.
+      const prev = lastVersionRef.current;
+      const lastRange = lastRangeRef.current;
+      if (
+        lastRange
+        && prev.pps === cullingPixelsPerSecond
+        && prev.fps === fps
+        && prev.itemsRef === items
+        && prev.transRef === transitions
+      ) {
+        const hysteresisFrames = fps > 0 && cullingPixelsPerSecond > 0
+          ? (HYSTERESIS_PX / cullingPixelsPerSecond) * fps
+          : 0;
+        if (
+          Math.abs(newRange.start - lastRange.start) < hysteresisFrames
+          && Math.abs(newRange.end - lastRange.end) < hysteresisFrames
+        ) {
+          return; // Skip — too small a shift to affect results
+        }
+      }
+
+      const visibleItems = getVisibleItemsForRange(items, newRange);
+      const visibleTransitions = getVisibleTransitionsForRange(
+        transitions,
+        items,
+        visibleItems,
+        newRange
+      );
+      const next: VisibleItemsSnapshot = { visibleItems, visibleTransitions };
+
+      lastRangeRef.current = newRange;
+      lastVersionRef.current = { pps: cullingPixelsPerSecond, fps, itemsRef: items, transRef: transitions };
+
+      setSnapshot((prevSnap) => (areVisibleSnapshotsEqual(prevSnap, next) ? prevSnap : next));
+    };
+
+    // Zoom-specific subscriber: skip when the quantized culling pps hasn't
+    // changed — avoids redundant store reads on every wheel tick.
+    let lastCullingPps = getCullingPixelsPerSecond(useZoomStore.getState());
+    const applyZoom = () => {
+      const nextPps = getCullingPixelsPerSecond(useZoomStore.getState());
+      if (nextPps === lastCullingPps) return;
+      lastCullingPps = nextPps;
+      apply();
     };
 
     apply();
 
     const unsubscribers = [
       useTimelineViewportStore.subscribe(apply),
-      useZoomStore.subscribe(apply),
+      useZoomStore.subscribe(applyZoom),
       useTimelineSettingsStore.subscribe(apply),
       useItemsStore.subscribe(apply),
       useTransitionsStore.subscribe(apply),
@@ -58,24 +179,6 @@ export function useVisibleItems(trackId: string) {
   }, [trackId]);
 
   return snapshot;
-}
-
-function computeVisibleItemsSnapshot(trackId: string): VisibleItemsSnapshot {
-  const { scrollLeft, viewportWidth } = useTimelineViewportStore.getState();
-  const { pixelsPerSecond } = useZoomStore.getState();
-  const { fps } = useTimelineSettingsStore.getState();
-  const items = useItemsStore.getState().itemsByTrackId[trackId];
-  const transitions = useTransitionsStore.getState().transitionsByTrackId[trackId];
-  const visibleFrameRange = getVisibleFrameRange(scrollLeft, viewportWidth, pixelsPerSecond, fps);
-  const visibleItems = getVisibleItemsForRange(items, visibleFrameRange);
-  const visibleTransitions = getVisibleTransitionsForRange(
-    transitions,
-    items,
-    visibleItems,
-    visibleFrameRange
-  );
-
-  return { visibleItems, visibleTransitions };
 }
 
 function getVisibleFrameRange(

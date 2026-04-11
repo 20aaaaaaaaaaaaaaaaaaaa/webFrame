@@ -2,14 +2,15 @@ import { createElement } from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { VideoItem } from '@/types/timeline';
+import type { AudioItem, TimelineTrack, VideoItem } from '@/types/timeline';
+import type { Transition } from '@/types/transition';
 
 import { useVisibleItems } from './use-visible-items';
 import { useItemsStore } from '../stores/items-store';
 import { useTimelineSettingsStore } from '../stores/timeline-settings-store';
-import { useTimelineViewportStore } from '../stores/timeline-viewport-store';
+import { useTimelineViewportStore, _resetViewportThrottle } from '../stores/timeline-viewport-store';
 import { useTransitionsStore } from '../stores/transitions-store';
-import { useZoomStore } from '../stores/zoom-store';
+import { _resetZoomStoreForTest, useZoomStore } from '../stores/zoom-store';
 
 function makeItem(id: string, from: number, duration: number): VideoItem {
   return {
@@ -24,6 +25,35 @@ function makeItem(id: string, from: number, duration: number): VideoItem {
   } as VideoItem;
 }
 
+function makeAudioItem(id: string, from: number, duration: number, trackId = 'audio-track'): AudioItem {
+  return {
+    id,
+    type: 'audio',
+    trackId,
+    from,
+    durationInFrames: duration,
+    label: `${id}.wav`,
+    src: 'blob:test-audio',
+    mediaId: `media-${id}`,
+  } as AudioItem;
+}
+
+function makeTrack(id: string, kind: 'video' | 'audio'): TimelineTrack {
+  return {
+    id,
+    name: kind === 'video' ? 'V1' : 'A1',
+    kind,
+    height: 80,
+    locked: false,
+    visible: true,
+    muted: false,
+    solo: false,
+    volume: 0,
+    order: kind === 'video' ? 0 : 1,
+    items: [],
+  };
+}
+
 function VisibleItemsProbe({
   onRender,
 }: {
@@ -33,6 +63,19 @@ function VisibleItemsProbe({
   const itemIds = visibleItems.map((item) => item.id);
   onRender(itemIds);
   return createElement('div', { 'data-testid': 'visible-items' }, itemIds.join(','));
+}
+
+function VisibleTransitionsProbe({
+  trackId,
+  onRender,
+}: {
+  trackId: string;
+  onRender: (transitionIds: string[]) => void;
+}) {
+  const { visibleTransitions } = useVisibleItems(trackId);
+  const transitionIds = visibleTransitions.map((transition) => transition.id);
+  onRender(transitionIds);
+  return createElement('div', { 'data-testid': `visible-transitions-${trackId}` }, transitionIds.join(','));
 }
 
 /** Replicate the hook's frame range calculation */
@@ -64,7 +107,7 @@ describe('useVisibleItems filtering logic', () => {
       isDirty: false,
       isTimelineLoading: false,
     });
-    useZoomStore.getState().setZoomLevelImmediate(1);
+    _resetZoomStoreForTest();
     useItemsStore.getState().setItems([]);
     useItemsStore.getState().setTracks([]);
     useTransitionsStore.getState().setTransitions([]);
@@ -113,6 +156,21 @@ describe('useVisibleItems filtering logic', () => {
   });
 
   it('does not re-render when scroll stays within the same visible item window', () => {
+    // Use fake timers so the viewport store's scroll throttle fires
+    // synchronously when we advance time within act(). Reset throttle
+    // state so fake-timer performance.now() is consistent.
+    vi.useFakeTimers();
+    _resetViewportThrottle();
+
+    // Re-set viewport with fake timers active so lastScrollUpdate
+    // is in fake-timer space.
+    useTimelineViewportStore.getState().setViewport({
+      scrollLeft: 0,
+      scrollTop: 0,
+      viewportWidth: 1000,
+      viewportHeight: 120,
+    });
+
     useItemsStore.getState().setItems([
       makeItem('a', 0, 30),
       makeItem('b', 300, 30),
@@ -125,28 +183,100 @@ describe('useVisibleItems filtering logic', () => {
     expect(screen.getByTestId('visible-items')).toHaveTextContent('a,b');
     expect(onRender).toHaveBeenCalledTimes(1);
 
+    // Small scroll — stays within same visible item window
     act(() => {
+      vi.advanceTimersByTime(100);
       useTimelineViewportStore.getState().setViewport({
         scrollLeft: 100,
         scrollTop: 0,
         viewportWidth: 1000,
         viewportHeight: 120,
       });
+      vi.advanceTimersByTime(100);
     });
 
     expect(screen.getByTestId('visible-items')).toHaveTextContent('a,b');
     expect(onRender).toHaveBeenCalledTimes(1);
 
+    // Large scroll — different visible items
     act(() => {
+      vi.advanceTimersByTime(100);
       useTimelineViewportStore.getState().setViewport({
         scrollLeft: 2000,
         scrollTop: 0,
         viewportWidth: 1000,
         viewportHeight: 120,
       });
+      vi.advanceTimersByTime(100);
     });
 
     expect(screen.getByTestId('visible-items')).toHaveTextContent('c');
     expect(onRender).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it('culls items outside the buffered viewport during live zoom-in', () => {
+    vi.useFakeTimers();
+
+    useItemsStore.getState().setItems([
+      makeItem('a', 0, 30),
+      makeItem('b', 500, 30), // at 2x zoom: pixel 3333 — outside [0,3000] buffered range
+    ]);
+
+    const onRender = vi.fn();
+    render(createElement(VisibleItemsProbe, { onRender }));
+
+    expect(screen.getByTestId('visible-items')).toHaveTextContent('a,b');
+    expect(onRender).toHaveBeenCalledTimes(1);
+
+    // Zoom in — culling now uses live pps (matching the viewport coordinate
+    // space) so item b at frame 500 correctly exits the buffered range.
+    act(() => {
+      useZoomStore.getState().setZoomLevelImmediate(2);
+    });
+
+    expect(screen.getByTestId('visible-items')).toHaveTextContent('a');
+    expect(onRender).toHaveBeenCalledTimes(2);
+
+    // After settle, same result
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(screen.getByTestId('visible-items')).toHaveTextContent('a');
+
+    vi.useRealTimers();
+  });
+
+  it('does not synthesize transition bridges on audio tracks for linked companions', () => {
+    const transition: Transition = {
+      id: 'tr-1',
+      type: 'crossfade',
+      presentation: 'fade',
+      timing: 'linear',
+      leftClipId: 'video-1',
+      rightClipId: 'video-2',
+      trackId: 'video-track',
+      durationInFrames: 20,
+    };
+
+    useItemsStore.getState().setTracks([
+      makeTrack('video-track', 'video'),
+      makeTrack('audio-track', 'audio'),
+    ]);
+    useItemsStore.getState().setItems([
+      makeItem('video-1', 0, 60),
+      makeAudioItem('audio-1', 0, 60),
+      makeItem('video-2', 60, 60),
+      makeAudioItem('audio-2', 60, 60),
+    ]);
+    useTransitionsStore.getState().setTransitions([transition]);
+
+    const onRender = vi.fn();
+    render(createElement(VisibleTransitionsProbe, { trackId: 'audio-track', onRender }));
+
+    expect(screen.getByTestId('visible-transitions-audio-track')).toHaveTextContent('');
+    expect(onRender).toHaveBeenCalledWith([]);
   });
 });

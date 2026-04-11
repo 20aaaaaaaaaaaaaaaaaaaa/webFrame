@@ -13,6 +13,13 @@ const logger = createLogger('ClipWaveform');
 
 // Continuous filled-path waveform styling (NLE-style)
 const WAVEFORM_VERTICAL_PADDING_PX = 3;
+const ZOOM_SETTLE_MS = 80;
+const RENDER_PPS_QUANTUM = 5;
+
+function quantizeRenderPps(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  return Math.max(1, Math.round(value / RENDER_PPS_QUANTUM) * RENDER_PPS_QUANTUM);
+}
 
 interface ClipWaveformProps {
   /** Media ID from the timeline item */
@@ -38,7 +45,7 @@ interface ClipWaveformProps {
 /**
  * Clip Waveform Component
  *
- * Renders audio waveform as a top-half thin-bar visualization for timeline clips.
+ * Renders audio waveform as a symmetrical mirrored visualization for timeline clips.
  * Uses tiled canvas for large clips and shows skeleton while loading.
  */
 export const ClipWaveform = memo(function ClipWaveform({
@@ -54,7 +61,12 @@ export const ClipWaveform = memo(function ClipWaveform({
 }: ClipWaveformProps) {
   void fps;
   const containerRef = useRef<HTMLDivElement>(null);
+  const pixelsPerSecondRef = useRef(pixelsPerSecond);
+  pixelsPerSecondRef.current = pixelsPerSecond;
   const [height, setHeight] = useState(0);
+  const [isZooming, setIsZooming] = useState(false);
+  const zoomSettleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPpsRef = useRef(pixelsPerSecond);
   const { blobUrl, setBlobUrl, hasStartedLoadingRef, blobUrlVersion } = useMediaBlobUrl(mediaId);
 
   // Measure container height
@@ -152,7 +164,33 @@ export const ClipWaveform = memo(function ClipWaveform({
     return maxPeak > 0 ? maxPeak : 1;
   }, [peaks]);
 
-  // Render function for tiled canvas — continuous filled path (NLE-style)
+  // During active zoom, redraw only when the quantized zoom bucket changes.
+  // Once zoom settles, force one exact redraw at the final pixels-per-second.
+  useEffect(() => {
+    if (lastPpsRef.current === pixelsPerSecond) return;
+    lastPpsRef.current = pixelsPerSecond;
+
+    setIsZooming(true);
+    if (zoomSettleTimeoutRef.current) {
+      clearTimeout(zoomSettleTimeoutRef.current);
+    }
+
+    zoomSettleTimeoutRef.current = setTimeout(() => {
+      setIsZooming(false);
+      zoomSettleTimeoutRef.current = null;
+    }, ZOOM_SETTLE_MS);
+  }, [pixelsPerSecond]);
+
+  useEffect(() => {
+    return () => {
+      if (zoomSettleTimeoutRef.current) {
+        clearTimeout(zoomSettleTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Render function for tiled canvas. Keep the callback stable through zoom
+  // changes and use versioning to decide when to redraw.
   const renderTile = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -165,32 +203,31 @@ export const ClipWaveform = memo(function ClipWaveform({
       }
 
       const effectiveStart = sourceStart + trimStart;
-      const baselineY = height - WAVEFORM_VERTICAL_PADDING_PX;
-      const maxWaveHeight = Math.max(1, height - WAVEFORM_VERTICAL_PADDING_PX * 2);
+      const currentPps = Math.max(1, pixelsPerSecondRef.current);
+      const centerY = height / 2;
+      const maxWaveHeight = Math.max(1, (height / 2) - WAVEFORM_VERTICAL_PADDING_PX);
+      const amplitudes = new Array<number>(tileWidth + 1).fill(0);
 
-      // Build a single path tracing the peak contour per-pixel
       ctx.beginPath();
-      ctx.moveTo(0, baselineY);
+      ctx.moveTo(0, centerY);
 
       for (let x = 0; x <= tileWidth; x++) {
-        const timelinePosition = (tileOffset + x) / pixelsPerSecond;
+        const timelinePosition = (tileOffset + x) / currentPps;
         const sourceTime = effectiveStart + (timelinePosition * speed);
 
         if (sourceTime < 0 || sourceTime > sourceDuration || sampleRate <= 0) {
-          ctx.lineTo(x, baselineY);
           continue;
         }
 
         const peakIndex = Math.floor(sourceTime * sampleRate);
         if (peakIndex < 0 || peakIndex >= peaks.length) {
-          ctx.lineTo(x, baselineY);
           continue;
         }
 
         // Window sampling to avoid aliasing
         const pointWindowSeconds = Math.max(
           1 / sampleRate,
-          (1 / pixelsPerSecond) * speed * 0.5
+          (1 / currentPps) * speed * 0.5
         );
         const samplesPerPoint = Math.max(1, Math.ceil(pointWindowSeconds * sampleRate));
         const halfWindow = Math.floor(samplesPerPoint / 2);
@@ -214,7 +251,6 @@ export const ClipWaveform = memo(function ClipWaveform({
         }
 
         if (sampleCount === 0) {
-          ctx.lineTo(x, baselineY);
           continue;
         }
 
@@ -227,12 +263,15 @@ export const ClipWaveform = memo(function ClipWaveform({
           normalizedMean * 0.38 + normalizedMax2 * 0.34 + needle * 2.35
         );
         const amp = peakValue <= 0.001 ? 0 : Math.pow(peakValue, 1.05);
-        const waveY = baselineY - amp * maxWaveHeight;
-        ctx.lineTo(x, waveY);
+        amplitudes[x] = amp * maxWaveHeight;
       }
 
-      // Close path back along the baseline
-      ctx.lineTo(tileWidth, baselineY);
+      for (let x = 0; x <= tileWidth; x++) {
+        ctx.lineTo(x, centerY - amplitudes[x]!);
+      }
+      for (let x = tileWidth; x >= 0; x--) {
+        ctx.lineTo(x, centerY + amplitudes[x]!);
+      }
       ctx.closePath();
 
       ctx.fillStyle = WAVEFORM_FILL_COLOR;
@@ -243,7 +282,7 @@ export const ClipWaveform = memo(function ClipWaveform({
       ctx.lineWidth = 0.75;
       ctx.stroke();
     },
-    [peaks, duration, sampleRate, pixelsPerSecond, sourceStart, trimStart, speed, sourceDuration, height, normalizationPeak]
+    [peaks, duration, sampleRate, sourceStart, trimStart, speed, sourceDuration, height, normalizationPeak]
   );
 
   // Show empty state for unsupported/failed waveforms (no infinite skeleton).
@@ -275,12 +314,12 @@ export const ClipWaveform = memo(function ClipWaveform({
     );
   }
 
-  // Include quantized pixelsPerSecond in version to force re-render on zoom changes
-  // Quantize to steps of 5 to reduce canvas redraws on small zoom changes
-  const quantizedPPS = Math.round(pixelsPerSecond / 5) * 5;
   const progressBucket = Math.floor(progress);
-  // Include decode progress so tiles repaint as streaming chunks arrive.
-  const renderVersion = progressBucket * 10000000 + peaks.length * 10000 + quantizedPPS + height;
+  const isActiveZoomRender = isZooming || lastPpsRef.current !== pixelsPerSecond;
+  const renderPpsKey = isActiveZoomRender
+    ? `q${quantizeRenderPps(pixelsPerSecond)}`
+    : `e${Math.round(Math.max(1, pixelsPerSecond) * 1000)}`;
+  const renderVersion = `${progressBucket}:${peaks.length}:${height}:${renderPpsKey}`;
 
   return (
     <div ref={containerRef} className="absolute inset-0">

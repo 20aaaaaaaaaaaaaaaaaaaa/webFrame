@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, useEffectEvent } from 'react';
-import { waveformCache, type CachedWaveform } from '../services/waveform-cache';
+import { waveformCache, getMonoPeaks, type CachedWaveform } from '../services/waveform-cache';
 import { createLogger } from '@/shared/logging/logger';
 
 const logger = createLogger('useWaveform');
@@ -106,8 +106,18 @@ export function useWaveform({
       return;
     }
 
-    // Skip if not visible and not already loading
-    if (!isVisible && !isGeneratingRef.current) {
+    // Skip if already generating — prevents premature re-starts when the
+    // subscription updates waveform state (e.g. init message changes
+    // waveform?.isComplete from undefined to false).  Without this guard the
+    // re-fire hits the memory cache, returns the incomplete (all-zero) peaks
+    // immediately, and sets isLoading=false before any real data has arrived,
+    // leaving the waveform area visually empty.
+    if (isGeneratingRef.current) {
+      return;
+    }
+
+    // Skip if not visible
+    if (!isVisible) {
       return;
     }
 
@@ -155,7 +165,7 @@ export function useWaveform({
   }, [mediaId]);
 
   return {
-    peaks: waveform?.peaks || null,
+    peaks: waveform ? getMonoPeaks(waveform) : null,
     duration: waveform?.duration || 0,
     sampleRate: waveform?.sampleRate || 100,
     channels: waveform?.channels || 1,

@@ -12,11 +12,29 @@ export {
   type SubComposition,
 } from '../stores/compositions-store';
 export { useItemsStore } from '../stores/items-store';
+export { wouldCreateCompositionCycle } from '../utils/composition-graph';
 
-export { removeItems, updateItem } from '../stores/timeline-actions';
+export {
+  deleteCompoundClips,
+  getCompoundClipDeletionImpact,
+  getMediaDeletionImpact,
+  removeProjectItems,
+  removeItems,
+  renameCompoundClip,
+  updateProjectItem,
+  updateItem,
+} from '../stores/timeline-actions';
 export {
   removeItems as removeItemsFromItemsActions,
 } from '../stores/actions/item-actions';
 
 export { autoMatchOrphanedClips } from '../utils/media-validation';
 export { gifFrameCache } from '../services/gif-frame-cache';
+export { resolveMediaUrl, resolveMediaUrls } from '../deps/media-library-contract';
+export { renderSingleFrame } from '../deps/export-contract';
+export {
+  buildSubCompositionInput,
+  buildSubCompositionPreviewSignature,
+  collectSubCompositionMediaIds,
+  getSubCompositionThumbnailFrame,
+} from '../utils/sub-composition-preview';

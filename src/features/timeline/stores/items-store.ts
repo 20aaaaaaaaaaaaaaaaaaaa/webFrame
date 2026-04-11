@@ -1,15 +1,20 @@
 ﻿import { create } from 'zustand';
 import { createLogger } from '@/shared/logging/logger';
-import type { TimelineItem, TimelineTrack } from '@/types/timeline';
+import type { AudioItem, TextItem, TimelineItem, TimelineTrack, VideoItem } from '@/types/timeline';
 import type { TransformProperties } from '@/types/transform';
 import type { VisualEffect, ItemEffect } from '@/types/effects';
 import { clampTrimAmount, clampToAdjacentItems, calculateTrimSourceUpdate } from '../utils/trim-utils';
 import { getSourceProperties, isMediaItem, calculateSplitSourceBoundaries, timelineToSourceFrames, calculateSpeed, clampSpeed } from '../utils/source-calculations';
+import { getLinkedItems } from '../utils/linked-items';
+import { isCompositionWrapperItem, wouldCreateCompositionCycle } from '../utils/composition-graph';
 import { useCompositionNavigationStore } from './composition-navigation-store';
+import { useCompositionsStore } from './compositions-store';
 import { useTimelineSettingsStore } from './timeline-settings-store';
 import { useTransitionsStore } from './transitions-store';
+import { clampAudioFadeCurve, clampAudioFadeCurveX } from '@/shared/utils/audio-fade-curve';
+import { normalizeCropSettings } from '@/shared/utils/media-crop';
 
-const log = createLogger('ItemsStore');
+function getLog() { return createLogger('ItemsStore'); }
 
 function roundFrame(value: number, fallback = 0): number {
   if (!Number.isFinite(value)) return fallback;
@@ -42,6 +47,11 @@ function normalizeFrameFields<T extends TimelineItem>(item: T): T {
     sourceEnd: roundOptionalFrame(item.sourceEnd),
     sourceDuration: roundOptionalFrame(item.sourceDuration),
     sourceFps: normalizeOptionalFps(item.sourceFps),
+    crop: normalizeCropSettings(item.crop),
+    audioFadeInCurve: item.audioFadeInCurve === undefined ? undefined : clampAudioFadeCurve(item.audioFadeInCurve),
+    audioFadeOutCurve: item.audioFadeOutCurve === undefined ? undefined : clampAudioFadeCurve(item.audioFadeOutCurve),
+    audioFadeInCurveX: item.audioFadeInCurveX === undefined ? undefined : clampAudioFadeCurveX(item.audioFadeInCurveX),
+    audioFadeOutCurveX: item.audioFadeOutCurveX === undefined ? undefined : clampAudioFadeCurveX(item.audioFadeOutCurveX),
   };
 
   // Legacy split clips can have sourceEnd without sourceStart.
@@ -67,11 +77,25 @@ function normalizeItemUpdates(updates: Partial<TimelineItem>): Partial<TimelineI
   if (normalized.sourceEnd !== undefined) normalized.sourceEnd = roundFrame(normalized.sourceEnd);
   if (normalized.sourceDuration !== undefined) normalized.sourceDuration = roundFrame(normalized.sourceDuration);
   if (normalized.sourceFps !== undefined) normalized.sourceFps = normalizeOptionalFps(normalized.sourceFps);
+  if (normalized.crop !== undefined) normalized.crop = normalizeCropSettings(normalized.crop);
 
   // Keep legacy end-only bounds explicit and stable.
   if (normalized.sourceEnd !== undefined &&
       normalized.sourceStart === undefined) {
     normalized.sourceStart = 0;
+  }
+
+   if (normalized.audioFadeInCurve !== undefined) {
+    normalized.audioFadeInCurve = clampAudioFadeCurve(normalized.audioFadeInCurve);
+  }
+  if (normalized.audioFadeOutCurve !== undefined) {
+    normalized.audioFadeOutCurve = clampAudioFadeCurve(normalized.audioFadeOutCurve);
+  }
+  if (normalized.audioFadeInCurveX !== undefined) {
+    normalized.audioFadeInCurveX = clampAudioFadeCurveX(normalized.audioFadeInCurveX);
+  }
+  if (normalized.audioFadeOutCurveX !== undefined) {
+    normalized.audioFadeOutCurveX = clampAudioFadeCurveX(normalized.audioFadeOutCurveX);
   }
 
   return normalized;
@@ -100,6 +124,158 @@ function buildItemsByTrackId(
     next[trackId] = previousTrackItems && areItemArraysEqual(previousTrackItems, trackItems)
       ? previousTrackItems
       : trackItems;
+  }
+
+  return next;
+}
+
+function buildItemsByLinkedGroupId(
+  items: TimelineItem[],
+  previous: Record<string, TimelineItem[]>
+): Record<string, TimelineItem[]> {
+  const grouped: Record<string, TimelineItem[]> = {};
+  for (const item of items) {
+    if (item.linkedGroupId) {
+      (grouped[item.linkedGroupId] ??= []).push(item);
+    }
+  }
+
+  const next: Record<string, TimelineItem[]> = {};
+  for (const [groupId, groupItems] of Object.entries(grouped)) {
+    const previousGroupItems = previous[groupId];
+    next[groupId] = previousGroupItems && areItemArraysEqual(previousGroupItems, groupItems)
+      ? previousGroupItems
+      : groupItems;
+  }
+
+  return next;
+}
+
+function isCaptionableClip(item: TimelineItem): item is AudioItem | VideoItem {
+  return (item.type === 'audio' || item.type === 'video')
+    && typeof item.mediaId === 'string'
+    && item.mediaId.length > 0;
+}
+
+function isLegacyGeneratedCaptionItem(item: TimelineItem): item is TextItem {
+  return item.type === 'text'
+    && !item.captionSource
+    && typeof item.mediaId === 'string'
+    && item.mediaId.length > 0
+    && item.text.trim().length > 0
+    && item.label === item.text.slice(0, 48);
+}
+
+function buildReplaceableCaptionClipIds(items: TimelineItem[]): Set<string> {
+  const ids = new Set<string>();
+  const clipsByMediaId: Record<string, Array<AudioItem | VideoItem>> = {};
+
+  for (const item of items) {
+    if (item.type === 'text' && item.captionSource?.type === 'transcript' && item.captionSource.clipId) {
+      ids.add(item.captionSource.clipId);
+      continue;
+    }
+
+    if (isCaptionableClip(item)) {
+      (clipsByMediaId[item.mediaId] ??= []).push(item);
+    }
+  }
+
+  for (const clips of Object.values(clipsByMediaId)) {
+    clips.sort((left, right) => left.from - right.from);
+  }
+
+  for (const item of items) {
+    if (!isLegacyGeneratedCaptionItem(item) || !item.mediaId) {
+      continue;
+    }
+
+    const itemEnd = item.from + item.durationInFrames;
+    const candidateClips = clipsByMediaId[item.mediaId];
+    if (!candidateClips) {
+      continue;
+    }
+
+    for (const clip of candidateClips) {
+      if (clip.from > item.from) {
+        break;
+      }
+
+      const clipEnd = clip.from + clip.durationInFrames;
+      if (item.from >= clip.from && itemEnd <= clipEnd) {
+        ids.add(clip.id);
+      }
+    }
+  }
+
+  return ids;
+}
+
+function isMediaPair(left: TimelineItem, right: TimelineItem): boolean {
+  return (left.type === 'video' && right.type === 'audio')
+    || (left.type === 'audio' && right.type === 'video');
+}
+
+function isLegacyLinkCandidate(item: TimelineItem): item is AudioItem | VideoItem {
+  return !item.linkedGroupId
+    && isCaptionableClip(item)
+    && typeof item.originId === 'string'
+    && item.originId.length > 0;
+}
+
+function isLegacyLinkedPair(anchor: TimelineItem, candidate: TimelineItem): boolean {
+  if (!isMediaPair(anchor, candidate)) return false;
+  if (!anchor.originId || anchor.originId !== candidate.originId) return false;
+  if (!anchor.mediaId || anchor.mediaId !== candidate.mediaId) return false;
+  return anchor.from === candidate.from && anchor.durationInFrames === candidate.durationInFrames;
+}
+
+function buildLinkedItemsByItemId(
+  items: TimelineItem[],
+  itemsByLinkedGroupId: Record<string, TimelineItem[]>,
+  previous: Record<string, TimelineItem[]>
+): Record<string, TimelineItem[]> {
+  const next: Record<string, TimelineItem[]> = {};
+
+  for (const groupItems of Object.values(itemsByLinkedGroupId)) {
+    if (groupItems.length <= 1) {
+      continue;
+    }
+
+    for (const item of groupItems) {
+      next[item.id] = groupItems;
+    }
+  }
+
+  const legacyGroups: Record<string, TimelineItem[]> = {};
+  for (const item of items) {
+    if (!isLegacyLinkCandidate(item)) {
+      continue;
+    }
+
+    const key = `${item.originId}|${item.mediaId}|${item.from}|${item.durationInFrames}`;
+    (legacyGroups[key] ??= []).push(item);
+  }
+
+  for (const groupItems of Object.values(legacyGroups)) {
+    if (groupItems.length <= 1) {
+      continue;
+    }
+
+    for (const anchor of groupItems) {
+      const linkedItems = groupItems.filter((candidate) =>
+        candidate.id === anchor.id || isLegacyLinkedPair(anchor, candidate)
+      );
+
+      if (linkedItems.length <= 1) {
+        continue;
+      }
+
+      const previousLinkedItems = previous[anchor.id];
+      next[anchor.id] = previousLinkedItems && areItemArraysEqual(previousLinkedItems, linkedItems)
+        ? previousLinkedItems
+        : linkedItems;
+    }
   }
 
   return next;
@@ -142,12 +318,16 @@ function computeMaxItemEndFrame(items: TimelineItem[]): number {
 
 function withItemIndexes(
   items: TimelineItem[],
-  previous: Pick<ItemsState, 'itemsByTrackId' | 'itemById'>
-): Pick<ItemsState, 'items' | 'itemsByTrackId' | 'itemById' | 'maxItemEndFrame'> {
+  previous: Pick<ItemsState, 'itemsByTrackId' | 'itemById' | 'itemsByLinkedGroupId' | 'linkedItemsByItemId'>
+): Pick<ItemsState, 'items' | 'itemsByTrackId' | 'itemById' | 'itemsByLinkedGroupId' | 'linkedItemsByItemId' | 'replaceableCaptionClipIds' | 'maxItemEndFrame'> {
+  const itemsByLinkedGroupId = buildItemsByLinkedGroupId(items, previous.itemsByLinkedGroupId);
   return {
     items,
     itemsByTrackId: buildItemsByTrackId(items, previous.itemsByTrackId),
     itemById: buildItemById(items, previous.itemById),
+    itemsByLinkedGroupId,
+    linkedItemsByItemId: buildLinkedItemsByItemId(items, itemsByLinkedGroupId, previous.linkedItemsByItemId),
+    replaceableCaptionClipIds: buildReplaceableCaptionClipIds(items),
     maxItemEndFrame: computeMaxItemEndFrame(items),
   };
 }
@@ -166,6 +346,45 @@ function getTransitionLinkedIds(itemId: string): Set<string> {
   return linkedIds;
 }
 
+function buildRippleShiftByItemId(items: TimelineItem[], deletedItems: TimelineItem[]): Map<string, number> {
+  const shiftByItemId = new Map<string, number>();
+
+  for (const item of items) {
+    let shiftAmount = 0;
+    for (const deletedItem of deletedItems) {
+      if (deletedItem.trackId === item.trackId && deletedItem.from + deletedItem.durationInFrames <= item.from) {
+        shiftAmount += deletedItem.durationInFrames;
+      }
+    }
+    shiftByItemId.set(item.id, shiftAmount);
+  }
+
+  const visited = new Set<string>();
+  for (const item of items) {
+    if (visited.has(item.id)) continue;
+
+    const linkedItems = getLinkedItems(items, item.id);
+    for (const linkedItem of linkedItems) {
+      visited.add(linkedItem.id);
+    }
+
+    if (linkedItems.length <= 1) continue;
+
+    let groupShift = 0;
+    for (const linkedItem of linkedItems) {
+      groupShift = Math.max(groupShift, shiftByItemId.get(linkedItem.id) ?? 0);
+    }
+
+    if (groupShift <= 0) continue;
+
+    for (const linkedItem of linkedItems) {
+      shiftByItemId.set(linkedItem.id, groupShift);
+    }
+  }
+
+  return shiftByItemId;
+}
+
 /**
  * Items state - timeline clips/items and tracks.
  * This is the core timeline content. Complex cross-domain operations
@@ -177,6 +396,10 @@ interface ItemsState {
   items: TimelineItem[];
   itemsByTrackId: Record<string, TimelineItem[]>;
   itemById: Record<string, TimelineItem>;
+  itemsByLinkedGroupId: Record<string, TimelineItem[]>;
+  linkedItemsByItemId: Record<string, TimelineItem[]>;
+  /** Set of clip IDs that can regenerate captions, including legacy generated captions */
+  replaceableCaptionClipIds: Set<string>;
   maxItemEndFrame: number;
   mediaDependencyIds: string[];
   mediaDependencyVersion: number;
@@ -226,6 +449,9 @@ export const useItemsStore = create<ItemsState & ItemsActions>()(
     items: [],
     itemsByTrackId: {},
     itemById: {},
+    itemsByLinkedGroupId: {},
+    linkedItemsByItemId: {},
+    replaceableCaptionClipIds: new Set<string>(),
     maxItemEndFrame: 0,
     mediaDependencyIds: [],
     mediaDependencyVersion: 0,
@@ -277,15 +503,15 @@ export const useItemsStore = create<ItemsState & ItemsActions>()(
 
       if (itemsToDelete.length === 0) return state;
 
-      const newItems = state.items
-        .filter((i) => !idsToDelete.has(i.id))
-        .map((item) => {
-          const shiftAmount = itemsToDelete
-            .filter((d) => d.trackId === item.trackId && d.from + d.durationInFrames <= item.from)
-            .reduce((sum, d) => sum + d.durationInFrames, 0);
+      const remainingItems = state.items.filter((i) => !idsToDelete.has(i.id));
+      const shiftByItemId = buildRippleShiftByItemId(remainingItems, itemsToDelete);
 
-          return shiftAmount > 0 ? { ...item, from: item.from - shiftAmount } : item;
-        });
+      const newItems = remainingItems.map((item) => {
+        const shiftAmount = shiftByItemId.get(item.id) ?? 0;
+        return shiftAmount > 0
+          ? normalizeFrameFields({ ...item, from: item.from - shiftAmount })
+          : item;
+      });
 
       return withItemIndexes(newItems, state);
     }),
@@ -356,14 +582,25 @@ export const useItemsStore = create<ItemsState & ItemsActions>()(
       const state = get();
       const itemsMap = new Map(state.items.map((i) => [i.id, i]));
       const newItems: TimelineItem[] = [];
-      const isInsideSubComp = useCompositionNavigationStore.getState().activeCompositionId !== null;
+      const activeCompositionId = useCompositionNavigationStore.getState().activeCompositionId;
+      const compositionById = useCompositionsStore.getState().compositionById;
+      const linkedGroupMap = new Map<string, string>();
 
       for (let i = 0; i < itemIds.length; i++) {
         const original = itemsMap.get(itemIds[i]!);
         const position = positions[i]!;
         if (!original || !position) continue;
-        // Skip composition items when inside a sub-composition (1-level nesting limit)
-        if (isInsideSubComp && original.type === 'composition') continue;
+        if (
+          activeCompositionId !== null
+          && isCompositionWrapperItem(original)
+          && wouldCreateCompositionCycle({
+            parentCompositionId: activeCompositionId,
+            insertedCompositionId: original.compositionId,
+            compositionById,
+          })
+        ) {
+          continue;
+        }
 
         const duplicate = {
           ...original,
@@ -374,6 +611,10 @@ export const useItemsStore = create<ItemsState & ItemsActions>()(
           // Without this, split clips that are duplicated would be grouped with the originals,
           // causing incorrect sourceStart calculations (can result in negative values).
           originId: crypto.randomUUID(),
+          linkedGroupId: original.linkedGroupId
+            ? (linkedGroupMap.get(original.linkedGroupId)
+              ?? linkedGroupMap.set(original.linkedGroupId, crypto.randomUUID()).get(original.linkedGroupId))
+            : undefined,
         } as TimelineItem;
 
         newItems.push(normalizeFrameFields(duplicate));
@@ -452,7 +693,6 @@ export const useItemsStore = create<ItemsState & ItemsActions>()(
       const state = get();
       const item = state.items.find((i) => i.id === id);
       if (!item) return null;
-      if (item.type === 'composition') return null;
       const splitAt = roundFrame(splitFrame);
 
       const itemStart = roundFrame(item.from);
@@ -508,8 +748,8 @@ export const useItemsStore = create<ItemsState & ItemsActions>()(
         (rightItem as typeof item).sourceStart = boundaries.right.sourceStart;
         (rightItem as typeof item).sourceEnd = boundaries.right.sourceEnd;
 
-        log.debug(`_splitItem: Original sourceStart:${sourceStart} speed:${speed} leftDuration:${leftDuration} rightDuration:${rightDuration}`);
-        log.debug(`_splitItem: boundaries.right.sourceStart:${boundaries.right.sourceStart} rightItem.sourceStart:${(rightItem as typeof item).sourceStart}`);
+        getLog().debug(`_splitItem: Original sourceStart:${sourceStart} speed:${speed} leftDuration:${leftDuration} rightDuration:${rightDuration}`);
+        getLog().debug(`_splitItem: boundaries.right.sourceStart:${boundaries.right.sourceStart} rightItem.sourceStart:${(rightItem as typeof item).sourceStart}`);
       }
 
       set((state) => {
@@ -566,16 +806,16 @@ export const useItemsStore = create<ItemsState & ItemsActions>()(
     _rateStretchItem: (id, newFrom, newDuration, newSpeed) => set((state) => {
       const nextItems = state.items.map((item) => {
         if (item.id !== id) return item;
-        // Allow video, audio, and GIF images (detected by .gif extension)
+        // Allow video, audio, compositions, and GIF images (detected by .gif extension)
         const isGif = item.type === 'image' && item.label?.toLowerCase().endsWith('.gif');
-        if (item.type !== 'video' && item.type !== 'audio' && !isGif) return item;
+        if (item.type !== 'video' && item.type !== 'audio' && item.type !== 'composition' && !isGif) return item;
 
         // For clips with explicit source bounds (split clips and trimmed segments),
         // preserve sourceStart/sourceEnd exactly and only retime via speed+duration.
         // Recomputing sourceEnd here causes destructive source-span drift over repeated
         // rate-stretch operations.
         const hasExplicitSourceBounds =
-          (item.type === 'video' || item.type === 'audio') &&
+          (item.type === 'video' || item.type === 'audio' || item.type === 'composition') &&
           item.sourceEnd !== undefined;
 
         const sourceStart = item.sourceStart ?? 0;
@@ -806,4 +1046,3 @@ useItemsStore.subscribe((state) => {
     mediaDependencyVersion: state.mediaDependencyVersion + 1,
   });
 });
-
