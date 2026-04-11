@@ -1,12 +1,6 @@
 # webFrame
 
-**webFrame** is a highly customized and enhanced professional browser-based video editor, built upon the original FreeCut engine.
-
-## 📺 Video Introduction
-![webFrame Introduction Video](.system_generated/recordings/webframe_intro_demo_1775919543651.webp)
-*(Watch the 30-second introduction showcasing our fluid language and theme transitions!)*
-
----
+**webFrame** is a customized professional browser-based video editor, focused on global accessibility and enhanced ergonomics.
 
 ## 🚀 Our Innovations & Enhancements
 
@@ -18,7 +12,7 @@ We built a comprehensive localization infrastructure from the ground up:
 - **Turkish Post-Production Jargon**: Full professional localization matching industry standards (e.g., *Zaman Çizelgesi*, *Medya Deposu*).
 - **100% Bilingual Coverage**: Every technical dialog, from GPU effects to the complex Export Pipeline, is fully localized.
 
-### 🎨 Professional Theme System
+### 🎨 Professional Design System & Themes
 A custom-engineered theme system designed for production environments:
 - **OKLCH Color Model**: Ensures perfect contrast and visual consistency across all panels.
 - **Three Professional Themes**: 
