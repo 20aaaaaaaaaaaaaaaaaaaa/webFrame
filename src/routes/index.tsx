@@ -9,6 +9,15 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useTranslation } from 'react-i18next';
+import { Globe } from 'lucide-react';
+import { useSettingsStore } from '@/features/settings/stores/settings-store';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export const Route = createFileRoute('/')({
   component: LandingPage,
@@ -16,6 +25,8 @@ export const Route = createFileRoute('/')({
 
 function LandingPage() {
   const { t } = useTranslation();
+  const appLanguage = useSettingsStore((s) => s.appLanguage);
+  const setSetting = useSettingsStore((s) => s.setSetting);
 
   const faqItems = [
     {
@@ -99,6 +110,28 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground select-text">
+      {/* Top Header with Language Switcher */}
+      <header className="fixed top-0 right-0 z-50 p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mr-2">
+            <Globe className="h-4 w-4" />
+            <span>{t('landing.selectLanguage', 'Select Language')}</span>
+          </div>
+          <Select
+            value={appLanguage}
+            onValueChange={(value) => setSetting('appLanguage', value as 'tr' | 'en')}
+          >
+            <SelectTrigger className="h-9 w-[120px] bg-background/50 backdrop-blur-sm border-white/10 hover:bg-background/80 transition-colors">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="tr">Türkçe</SelectItem>
+              <SelectItem value="en">English</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <section className="relative flex h-screen flex-col items-center justify-center px-6">
         {/* Subtle gradient background */}

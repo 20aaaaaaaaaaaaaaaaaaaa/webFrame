@@ -34,7 +34,8 @@
     "faqDesc": "webFrame hakkında bilmeniz gereken her şey.",
     "ctaTitle": "Düzenlemeye hazır mısınız?",
     "ctaDesc": "Hemen katılın ve ilk projenizi saniyeler içinde oluşturun.",
-    "startEditing": "Düzenlemeye Başla"
+    "startEditing": "Düzenlemeye Başla",
+    "selectLanguage": "Dil Seç"
   },
   "faq": {
     "q1": "webFrame gerçekten ücretsiz mi?",

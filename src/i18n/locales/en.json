@@ -34,7 +34,8 @@
     "faqDesc": "Everything you need to know about webFrame.",
     "ctaTitle": "Ready to start editing?",
     "ctaDesc": "Jump in and create your first project in seconds.",
-    "startEditing": "Start Editing"
+    "startEditing": "Start Editing",
+    "selectLanguage": "Select Language"
   },
   "faq": {
     "q1": "Is webFrame really free?",

@@ -75,7 +75,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 
   // Interface
   editorDensity: DEFAULT_EDITOR_DENSITY_PRESET,
-  appLanguage: 'tr',
+  appLanguage: 'en',
   appTheme: 'studio-gray',
 
   // Performance
