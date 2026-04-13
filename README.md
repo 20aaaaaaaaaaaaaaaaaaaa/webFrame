@@ -35,21 +35,11 @@ webFrame features a professional-grade flexible interface:
 
 ## ⚡ Quick Start
 
-**Prerequisites:** Node.js 18+
+WebFrame runs entirely in your browser with zero installation needed! 🎉
 
-```bash
-# Clone the repository
-git clone https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame.git
-cd webFrame
+**👉 Start editing now:** **[https://web-frame-lac.vercel.app](https://web-frame-lac.vercel.app/)**
 
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
-```
-
-Open [http://localhost:5173](http://localhost:5173) in a modern Chromium-based browser (Chrome or Edge 113+ recommended).
+*(Recommended: For the best video editing performance, please use a modern Chromium-based browser such as Google Chrome or Microsoft Edge 113+).*
 
 ---
 
