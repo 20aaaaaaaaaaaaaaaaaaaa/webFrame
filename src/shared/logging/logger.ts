@@ -55,13 +55,7 @@ export interface Logger {
 
 function getDefaultLevel(): number {
   // 0 = DEBUG, 2 = WARN
-  return (
-    typeof import.meta !== 'undefined' &&
-    typeof import.meta.env !== 'undefined' &&
-    import.meta.env.DEV
-  )
-    ? 0
-    : 2;
+  return import.meta.env.DEV ? 0 : 2;
 }
 
 function shouldLog(current: number, threshold: number): boolean {
@@ -73,11 +67,7 @@ function formatMessage(prefix: string, message: string): string {
 }
 
 function isDev(): boolean {
-  return (
-    typeof import.meta !== 'undefined' &&
-    typeof import.meta.env !== 'undefined' &&
-    !!import.meta.env.DEV
-  );
+  return !!import.meta.env.DEV;
 }
 
 /**

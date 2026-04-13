@@ -18,9 +18,7 @@ interface DebugState {
  * Note: Safe check for import.meta.env to support both Vite (client) and
  * webpack (Composition server-side rendering) bundlers
  */
-const isDev = typeof import.meta !== 'undefined' &&
-  typeof import.meta.env !== 'undefined' &&
-  import.meta.env.DEV;
+const isDev = import.meta.env.DEV;
 
 export const useDebugStore = isDev
   ? create<DebugState>((set) => ({

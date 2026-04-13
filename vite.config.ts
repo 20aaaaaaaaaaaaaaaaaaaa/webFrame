@@ -70,14 +70,8 @@ export default defineConfig({
             return 'feature-editing-core';
           }
 
-          // React must be in its own chunk, loaded first to ensure proper initialization
-          // This prevents "Cannot set properties of undefined" errors with React 19.2 features
-          if (id.includes('node_modules/react-dom')) {
-            return 'react-vendor';
-          }
-          if (id.includes('node_modules/react/')) {
-            return 'react-vendor';
-          }
+          // Let Rollup handle React and UI framework chunking automatically.
+          // Manual grouping here breaks internal CJS/ESM interop in React 19.
           // Router framework
           if (id.includes('@tanstack/react-router')) {
             return 'router-vendor';
@@ -106,14 +100,7 @@ export default defineConfig({
           if (id.includes('/node_modules/gifuct-js/')) {
             return 'gif-processing';
           }
-          // UI framework
-          if (id.includes('@radix-ui/')) {
-            return 'vendor-ui';
-          }
-          // Icons - keep lucide-react in separate chunk for better caching
-          if (id.includes('lucide-react')) {
-            return 'vendor-icons';
-          }
+          // Legacy separated chunks now handled above in vendor-ui
           return undefined;
         },
       },
