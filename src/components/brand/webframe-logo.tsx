@@ -43,9 +43,7 @@ function FrameIcon({ className }: { className?: string }) {
   );
 }
 
-/** @deprecated Use WebFrameLogo instead */
-export const WebFrameLogo = WebFrameLogo;
-
+// Legacy export removed to prevent redeclaration
 export function WebFrameLogo({ variant = 'full', size = 'md', className }: WebFrameLogoProps) {
   const config = sizeConfig[size];
 
