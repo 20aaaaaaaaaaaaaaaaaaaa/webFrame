@@ -7,7 +7,7 @@ const logger = createLogger('ProjectsIndex');
 import { Button } from '@/components/ui/button';
 import { Plus, Upload, FolderOpen, File, Github } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { FreeCutLogo } from '@/components/brand/freecut-logo';
+import { WebFrameLogo } from '@/components/brand/webframe-logo';
 import { ProjectList } from '@/features/projects/components/project-list';
 import { ProjectForm } from '@/features/projects/components/project-form';
 import {
@@ -71,7 +71,7 @@ export function ProjectsPage() {
     return name;
   };
 
-  // Check if file is a valid bundle (handles browser-renamed files like "project.freecut (1).zip")
+  // Check if file is a valid bundle (handles browser-renamed files like "project.webframe (1).zip")
   const isValidBundleFile = (fileName: string): boolean => {
     // Match: anything.webframe.zip or anything.webframe (N).zip
     return /\.webframe(\s*\(\d+\))?\.zip$/i.test(fileName);
@@ -99,7 +99,7 @@ export function ProjectsPage() {
     // Reset file input for next selection
     event.target.value = '';
 
-    // Validate file extension (handles browser-renamed files like "project.freecut (1).zip")
+    // Validate file extension (handles browser-renamed files like "project.webframe (1).zip")
     if (!isValidBundleFile(file.name)) {
       setImportError(t('projects.invalidBundleFile', { extension: BUNDLE_EXTENSION }));
       setImportDialogOpen(true);
@@ -246,7 +246,7 @@ export function ProjectsPage() {
         <div className="panel-header border-b border-border">
           <div className="max-w-[1920px] mx-auto px-4 py-3 flex items-center justify-between">
             <Link to="/">
-              <FreeCutLogo variant="full" size="md" className="hover:opacity-80 transition-opacity" />
+              <WebFrameLogo variant="full" size="md" className="hover:opacity-80 transition-opacity" />
             </Link>
             <div className="flex items-center gap-3">
               <Button

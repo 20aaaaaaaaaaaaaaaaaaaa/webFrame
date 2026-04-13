@@ -160,7 +160,7 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefaults: () => set(DEFAULT_SETTINGS),
     }),
     {
-      name: 'freecut-settings',
+      name: 'webframe-settings',
       merge: (persistedState, currentState) => {
         const typedState = (persistedState as Partial<AppSettings> | undefined) ?? {};
 

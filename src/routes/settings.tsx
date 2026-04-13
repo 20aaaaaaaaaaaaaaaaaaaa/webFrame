@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { FreeCutLogo } from '@/components/brand/freecut-logo';
+import { WebFrameLogo } from '@/components/brand/webframe-logo';
 import { LocalInferenceUnloadControl } from '@/features/settings/components/local-inference-unload-control';
 import { useSettingsStore } from '@/features/settings/stores/settings-store';
 import { HOTKEYS, HOTKEY_DESCRIPTIONS, type HotkeyKey } from '@/config/hotkeys';
@@ -88,7 +88,7 @@ function Settings() {
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <FreeCutLogo variant="full" size="md" />
+            <WebFrameLogo variant="full" size="md" />
           </div>
           <Button variant="outline" onClick={resetToDefaults}>
             <RotateCcw className="w-4 h-4 mr-2" />

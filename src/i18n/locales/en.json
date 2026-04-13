@@ -366,7 +366,7 @@
   },
   "debug": {
     "downloadJson": "Download JSON",
-    "downloadedJsonMsg": "Downloaded .freecut.json",
+    "downloadedJsonMsg": "Downloaded .webframe.json",
     "downloadJsonDesc": "Download project as JSON file",
     "copyToClipboard": "Copy to Clipboard",
     "copiedMsg": "Copied to clipboard",

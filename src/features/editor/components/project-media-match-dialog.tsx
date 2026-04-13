@@ -244,7 +244,7 @@ export function ProjectMediaMatchDialog({ projectId }: ProjectMediaMatchDialogPr
 
             {suggestion.fpsWasRounded && (
               <p className="text-xs text-muted-foreground">
-                FreeCut matches imported video to the closest supported project frame rate.
+                WebFrame matches imported video to the closest supported project frame rate.
                 This clip would use {suggestion.matchedFpsLabel} fps.
               </p>
             )}

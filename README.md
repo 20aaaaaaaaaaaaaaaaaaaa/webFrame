@@ -54,4 +54,4 @@ Open [http://localhost:5173](http://localhost:5173) in a modern Chromium-based b
 ---
 
 ## License
-webFrame is a fork of the FreeCut project by Walter Low. It is licensed under the [MIT License](LICENSE).
+webFrame is a fork of the WebFrame project by Walter Low. It is licensed under the [MIT License](LICENSE).

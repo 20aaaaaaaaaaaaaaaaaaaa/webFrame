@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowRight, Star } from 'lucide-react';
-import { FreeCutLogo } from '@/components/brand/freecut-logo';
+import { WebFrameLogo } from '@/components/brand/webframe-logo';
 import { Button } from '@/components/ui/button';
 import {
   Accordion,
@@ -97,7 +97,7 @@ function LandingPage() {
         <p>
           {t('faq.a8_1', 'webFrame is based on the open-source project')}{' '}
           <a href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame" target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
-            freecut
+            webframe
           </a>
           {' '}
           {t('faq.a8_2', 'created by walterlow.')}
@@ -141,7 +141,7 @@ function LandingPage() {
 
         <div className="relative z-10 flex flex-col items-center text-center animate-fade-in">
           <div className="mb-6 flex items-center gap-3">
-            <FreeCutLogo size="lg" />
+            <WebFrameLogo size="lg" />
             <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
               {t('landing.beta', 'Beta')}
             </span>

@@ -210,11 +210,11 @@ export const Editor = memo(function Editor({ projectId, project }: EditorProps) 
       const safeName = project.name.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_').substring(0, 100);
       try {
         const handle = await window.showSaveFilePicker({
-          suggestedName: `${safeName}.freecut.zip`,
+          suggestedName: `${safeName}.webframe.zip`,
           types: [
             {
-              description: 'FreeCut Project Bundle',
-              accept: { 'application/zip': ['.freecut.zip'] },
+              description: 'WebFrame Project Bundle',
+              accept: { 'application/zip': ['.webframe.zip'] },
             },
           ],
         });

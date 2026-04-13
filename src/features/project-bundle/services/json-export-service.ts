@@ -141,7 +141,7 @@ export function downloadSnapshotJson(snapshot: ProjectSnapshot, filename?: strin
   const safeName = sanitizeFilename(filename || snapshot.project.name);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${safeName}.freecut.json`;
+  a.download = `${safeName}.webframe.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

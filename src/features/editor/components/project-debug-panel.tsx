@@ -187,7 +187,7 @@ export function ProjectDebugPanel({ projectId }: ProjectDebugPanelProps) {
     {
       label: 'Download JSON',
       icon: <Download className="h-3.5 w-3.5" />,
-      action: () => runAction(handleExportJson, 'Downloaded .freecut.json'),
+      action: () => runAction(handleExportJson, 'Downloaded .webframe.json'),
       description: 'Download project as JSON file',
     },
     {

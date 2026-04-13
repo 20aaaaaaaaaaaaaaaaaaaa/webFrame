@@ -56,7 +56,7 @@ export function ProjectUpgradeDialog({
               but this build expects v{currentSchemaVersion}.
             </span>
             <span className="block">
-              FreeCut can upgrade it for you before loading the editor. A backup of the
+              WebFrame can upgrade it for you before loading the editor. A backup of the
               pre-upgrade project will be created first so you can restore the old data if
               anything looks off.
             </span>

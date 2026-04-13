@@ -44,7 +44,7 @@ function FrameIcon({ className }: { className?: string }) {
 }
 
 /** @deprecated Use WebFrameLogo instead */
-export const FreeCutLogo = WebFrameLogo;
+export const WebFrameLogo = WebFrameLogo;
 
 export function WebFrameLogo({ variant = 'full', size = 'md', className }: WebFrameLogoProps) {
   const config = sizeConfig[size];

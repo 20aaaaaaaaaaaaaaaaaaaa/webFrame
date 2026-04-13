@@ -365,7 +365,7 @@
   },
   "debug": {
     "downloadJson": "JSON İndir",
-    "downloadedJsonMsg": ".freecut.json İndirildi",
+    "downloadedJsonMsg": ".webframe.json İndirildi",
     "downloadJsonDesc": "Projeyi JSON formatında indir",
     "copyToClipboard": "Panoya Kopyala",
     "copiedMsg": "Panoya kopyalandı",

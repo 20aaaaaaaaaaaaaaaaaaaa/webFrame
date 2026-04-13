@@ -1,13 +1,13 @@
 # Third Party Licenses
 
-## FreeCut
+## WebFrame
 
-This project is based on [FreeCut](https://github.com/walterlow/freecut), an open-source browser-based video editor.
+This project is based on [WebFrame](https://github.com/walterlow/webframe), an open-source browser-based video editor.
 
 ```
 MIT License
 
-Copyright (c) 2025 FreeCut
+Copyright (c) 2025 WebFrame
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
