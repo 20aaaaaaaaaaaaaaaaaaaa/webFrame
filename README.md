@@ -44,4 +44,4 @@ WebFrame runs entirely in your browser with zero installation needed! 🎉
 ---
 
 ## License
-webFrame is a fork of the WebFrame project by Walter Low. It is licensed under the [MIT License](LICENSE).
+webFrame is a fork of the [Freecut](https://github.com/walterlow/freecut) project by Walter Low. It is licensed under the [MIT License](LICENSE).

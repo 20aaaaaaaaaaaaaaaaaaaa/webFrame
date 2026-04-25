@@ -96,8 +96,8 @@ function LandingPage() {
       answer: (
         <p>
           {t('faq.a8_1', 'webFrame is based on the open-source project')}{' '}
-          <a href="https://github.com/20aaaaaaaaaaaaaaaaaaaa/webFrame" target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
-            webframe
+          <a href="https://github.com/walterlow/freecut" target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
+            Freecut
           </a>
           {' '}
           {t('faq.a8_2', 'created by walterlow.')}
