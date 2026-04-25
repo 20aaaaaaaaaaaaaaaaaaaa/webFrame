@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { getMasterAnalyser } from '@/features/composition-runtime/utils/master-audio-bus';
+import { getMasterAnalyser } from '../deps/composition-runtime';
 
 export const AudioMeter: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);

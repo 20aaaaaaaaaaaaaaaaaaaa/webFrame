@@ -21,3 +21,4 @@ export {
   getSourceDimensions,
 } from '@/features/composition-runtime/utils/transform-resolver';
 export { clearPreviewAudioCache } from '@/features/composition-runtime/utils/audio-decode-cache';
+export { getMasterAnalyser } from '@/features/composition-runtime/utils/master-audio-bus';
