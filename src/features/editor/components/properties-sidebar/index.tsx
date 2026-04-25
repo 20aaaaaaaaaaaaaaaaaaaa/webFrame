@@ -1,6 +1,7 @@
 import { Activity, memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Settings2 } from 'lucide-react';
 import { useItemsStore } from '@/features/editor/deps/timeline-store';
@@ -55,7 +56,7 @@ function buildClipHeaderGroups(items: HeaderItem[]) {
   }));
 }
 
-function getClipHeader(items: HeaderItem[], t: any) {
+function getClipHeader(items: HeaderItem[], t: TFunction) {
   const groups = buildClipHeaderGroups(items);
   const logicalCount = groups.length;
 
